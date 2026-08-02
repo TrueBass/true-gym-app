@@ -3,6 +3,7 @@ import * as Crypto from 'expo-crypto';
 
 const USERS_KEY = '@gym/users';
 const SESSION_KEY = '@gym/session';
+const THEME_KEY = '@gym/theme';
 const prsKey = (userId) => `@gym/prs/${userId}`;
 const weightsKey = (userId) => `@gym/weights/${userId}`;
 
@@ -76,6 +77,12 @@ export async function getCurrentUser() {
 }
 
 const publicUser = ({ id, name, email }) => ({ id, name, email });
+
+/* ---------------------------------- theme --------------------------------- */
+
+/** Device-wide, not per-account — the auth screen needs it before anyone logs in. */
+export const getThemePreference = () => AsyncStorage.getItem(THEME_KEY);
+export const setThemePreference = (key) => AsyncStorage.setItem(THEME_KEY, key);
 
 /* --------------------------------- account -------------------------------- */
 

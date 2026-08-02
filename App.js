@@ -8,22 +8,34 @@ import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './src/AuthContext';
+import { ThemeProvider, useTheme } from './src/ThemeContext';
 import AuthScreen from './src/screens/AuthScreen';
 import HomeScreen from './src/screens/HomeScreen';
-import { colors } from './src/theme';
 
 function Root() {
   const { user, loading } = useAuth();
+  const { colors, isDark } = useTheme();
 
-  if (loading) {
-    return (
-      <View style={styles.loading}>
-        <ActivityIndicator color={colors.accent} size="large" />
-      </View>
-    );
-  }
+  return (
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.bg }]} edges={['top', 'left', 'right']}>
+      {/* Status bar contrast is inverse of the page, so it tracks the theme. */}
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      {loading ? (
+        <View style={styles.loading}>
+          <ActivityIndicator color={colors.accent} size="large" />
+        </View>
+      ) : user ? (
+        <HomeScreen />
+      ) : (
+        <AuthScreen />
+      )}
+    </SafeAreaView>
+  );
+}
 
-  return user ? <HomeScreen /> : <AuthScreen />;
+function Boot() {
+  const { colors } = useTheme();
+  return <View style={[styles.boot, { backgroundColor: colors.bg }]} />;
 }
 
 export default function App() {
@@ -33,20 +45,19 @@ export default function App() {
     JetBrainsMono_700Bold,
   });
 
-  // Every text style names a JetBrains Mono face, so hold the first frame until
-  // they resolve — otherwise the UI flashes in the system font and reflows.
-  if (!fontsLoaded) {
-    return <View style={styles.boot} />;
-  }
-
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
-          <StatusBar style="light" />
-          <Root />
-        </SafeAreaView>
-      </AuthProvider>
+      <ThemeProvider>
+        {/* Every text style names a JetBrains Mono face, so hold the first frame
+            until they resolve — otherwise the UI flashes in the system font. */}
+        {fontsLoaded ? (
+          <AuthProvider>
+            <Root />
+          </AuthProvider>
+        ) : (
+          <Boot />
+        )}
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }
@@ -54,11 +65,9 @@ export default function App() {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: colors.bg,
   },
   boot: {
     flex: 1,
-    backgroundColor: colors.bg,
   },
   loading: {
     flex: 1,

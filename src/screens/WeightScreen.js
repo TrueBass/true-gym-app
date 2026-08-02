@@ -10,15 +10,16 @@ import {
   View,
 } from 'react-native';
 import { useAuth } from '../AuthContext';
+import { useTheme, useThemedStyles } from '../ThemeContext';
 import { useTabBarInset } from '../components/FloatingTabBar';
 import { Button, Card, Empty, Field } from '../components/ui';
 import { addWeight, deleteWeight, getWeights } from '../storage';
-import { colors, fonts, radius, spacing } from '../theme';
+import { fonts, radius, spacing } from '../theme';
 
 /** Below this, a change is noise from scale variance rather than a real trend. */
 const FLAT_THRESHOLD_KG = 0.2;
 
-function trendOf(deltaKg) {
+function trendOf(deltaKg, colors) {
   if (deltaKg > FLAT_THRESHOLD_KG) return { label: 'Gaining', color: colors.up, arrow: '▲' };
   if (deltaKg < -FLAT_THRESHOLD_KG) return { label: 'Losing', color: colors.down, arrow: '▼' };
   return { label: 'Holding', color: colors.muted, arrow: '=' };
@@ -28,6 +29,7 @@ const formatKg = (kg) => (Math.round(kg * 10) / 10).toFixed(1);
 const signed = (kg) => `${kg > 0 ? '+' : kg < 0 ? '−' : ''}${formatKg(Math.abs(kg))}`;
 
 function Sparkline({ entries }) {
+  const styles = useThemedStyles(makeStyles);
   // Entries arrive newest-first; the chart reads left-to-right as oldest-to-newest.
   const points = useMemo(() => entries.slice(0, 20).reverse(), [entries]);
   if (points.length < 2) return null;
@@ -51,6 +53,8 @@ function Sparkline({ entries }) {
 export default function WeightScreen() {
   const { user } = useAuth();
   const tabBarInset = useTabBarInset();
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [entries, setEntries] = useState([]);
   const [kg, setKg] = useState('');
   const [error, setError] = useState('');
@@ -96,7 +100,7 @@ export default function WeightScreen() {
     [user.id]
   );
 
-  const overall = stats ? trendOf(stats.sinceStart) : null;
+  const overall = stats ? trendOf(stats.sinceStart, colors) : null;
 
   return (
     <KeyboardAvoidingView
@@ -162,7 +166,7 @@ export default function WeightScreen() {
         renderItem={({ item, index }) => {
           const previous = entries[index + 1];
           const delta = previous ? item.kg - previous.kg : null;
-          const trend = delta === null ? null : trendOf(delta);
+          const trend = delta === null ? null : trendOf(delta, colors);
 
           return (
             <Card style={styles.row}>
@@ -196,7 +200,9 @@ export default function WeightScreen() {
 }
 
 function Delta({ label, value, empty }) {
-  const trend = value === null ? null : trendOf(value);
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const trend = value === null ? null : trendOf(value, colors);
 
   return (
     <View style={styles.delta}>
@@ -208,7 +214,8 @@ function Delta({ label, value, empty }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors) =>
+  StyleSheet.create({
   flex: {
     flex: 1,
   },

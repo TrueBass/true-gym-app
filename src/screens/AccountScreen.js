@@ -3,24 +3,81 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { useAuth } from '../AuthContext';
+import { useTheme, useThemedStyles } from '../ThemeContext';
 import { useTabBarInset } from '../components/FloatingTabBar';
 import { Button, Card, Field } from '../components/ui';
-import { colors, fonts, radius, spacing } from '../theme';
+import { fonts, radius, spacing, themeList } from '../theme';
 
 /** Inline status line for a section — cleared whenever its form is edited again. */
 function Status({ error, success }) {
+  const styles = useThemedStyles(makeStyles);
   if (!error && !success) return null;
   return <Text style={[styles.status, error ? styles.error : styles.success]}>{error || success}</Text>;
 }
 
+/** Swatch trio previewing a palette without having to switch to it. */
+function Swatches({ palette }) {
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <View style={[styles.swatches, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+      <View style={[styles.swatch, { backgroundColor: palette.card }]} />
+      <View style={[styles.swatch, styles.swatchAccent, { backgroundColor: palette.accent }]} />
+      <View style={[styles.swatch, { backgroundColor: palette.muted }]} />
+    </View>
+  );
+}
+
+function ThemeSection() {
+  const { key: activeKey, selectTheme } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
+  return (
+    <Card style={styles.section}>
+      <Text style={styles.sectionTitle}>Theme</Text>
+      <Text style={styles.current}>Applies immediately and is remembered.</Text>
+
+      {themeList.map((option) => {
+        const selected = option.key === activeKey;
+        return (
+          <Pressable
+            key={option.key}
+            onPress={() => selectTheme(option.key)}
+            style={({ pressed }) => [
+              styles.themeRow,
+              selected && styles.themeRowSelected,
+              pressed && styles.themeRowPressed,
+            ]}
+            accessibilityRole="radio"
+            accessibilityState={{ selected }}
+            accessibilityLabel={`${option.label} theme`}
+          >
+            <Swatches palette={option.colors} />
+
+            <View style={styles.themeMeta}>
+              <Text style={styles.themeLabel}>{option.label}</Text>
+              <Text style={styles.themeHint}>{option.hint}</Text>
+            </View>
+
+            <View style={[styles.radio, selected && styles.radioOn]}>
+              {selected && <View style={styles.radioDot} />}
+            </View>
+          </Pressable>
+        );
+      })}
+    </Card>
+  );
+}
+
 function EmailSection() {
   const { user, changeEmail } = useAuth();
+  const styles = useThemedStyles(makeStyles);
   const [newEmail, setNewEmail] = useState('');
   const [password, setPassword] = useState('');
   const [state, setState] = useState({});
@@ -79,6 +136,7 @@ function EmailSection() {
 
 function PasswordSection() {
   const { changePassword } = useAuth();
+  const styles = useThemedStyles(makeStyles);
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -147,6 +205,7 @@ function PasswordSection() {
 
 function DangerSection() {
   const { deleteAccount } = useAuth();
+  const styles = useThemedStyles(makeStyles);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -204,6 +263,7 @@ function DangerSection() {
 export default function AccountScreen() {
   const { user, logOut } = useAuth();
   const tabBarInset = useTabBarInset();
+  const styles = useThemedStyles(makeStyles);
 
   return (
     <KeyboardAvoidingView
@@ -229,6 +289,7 @@ export default function AccountScreen() {
           </View>
         </Card>
 
+        <ThemeSection />
         <EmailSection />
         <PasswordSection />
 
@@ -240,7 +301,8 @@ export default function AccountScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors) =>
+  StyleSheet.create({
   flex: {
     flex: 1,
   },
@@ -279,6 +341,74 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: spacing.md,
+  },
+  themeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    marginTop: spacing.sm,
+  },
+  themeRowSelected: {
+    borderColor: colors.accent,
+    backgroundColor: colors.cardAlt,
+  },
+  themeRowPressed: {
+    opacity: 0.7,
+  },
+  swatches: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    padding: 5,
+    borderWidth: 1,
+    borderRadius: radius.sm,
+    marginRight: spacing.md,
+  },
+  swatch: {
+    width: 12,
+    height: 22,
+    borderRadius: 2,
+  },
+  // The three themes share their surfaces, so the accent is what distinguishes
+  // them — give it the room.
+  swatchAccent: {
+    width: 22,
+  },
+  themeMeta: {
+    flex: 1,
+  },
+  themeLabel: {
+    fontFamily: fonts.bold,
+    color: colors.text,
+    fontSize: 15,
+  },
+  themeHint: {
+    fontFamily: fonts.regular,
+    color: colors.muted,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  radio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioOn: {
+    borderColor: colors.accent,
+  },
+  radioDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.accent,
   },
   sectionTitle: {
     fontFamily: fonts.bold,

@@ -3,7 +3,8 @@ import { BlurView } from 'expo-blur';
 import { useEffect, useRef } from 'react';
 import { Animated, Keyboard, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, spacing } from '../theme';
+import { fonts, spacing } from '../theme';
+import { useTheme, useThemedStyles } from '../ThemeContext';
 
 const BAR_HEIGHT = 62;
 const BAR_MARGIN = spacing.md;
@@ -18,6 +19,8 @@ export function useTabBarInset() {
 }
 
 function TabItem({ tab, isActive, onPress }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const scale = useRef(new Animated.Value(isActive ? 1 : 0)).current;
 
   useEffect(() => {
@@ -54,6 +57,8 @@ function TabItem({ tab, isActive, onPress }) {
 }
 
 export default function FloatingTabBar({ tabs, active, onChange }) {
+  const { isDark } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const shift = useRef(new Animated.Value(0)).current;
 
@@ -90,7 +95,7 @@ export default function FloatingTabBar({ tabs, active, onChange }) {
       <View style={styles.bar}>
         <BlurView
           intensity={28}
-          tint="dark"
+          tint={isDark ? 'dark' : 'light'}
           experimentalBlurMethod="dimezisBlurView"
           style={StyleSheet.absoluteFill}
         />
@@ -110,7 +115,8 @@ export default function FloatingTabBar({ tabs, active, onChange }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors) =>
+  StyleSheet.create({
   wrap: {
     position: 'absolute',
     left: BAR_MARGIN,
@@ -122,7 +128,7 @@ const styles = StyleSheet.create({
     borderRadius: BAR_HEIGHT / 2,
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: colors.border,
     // Lifts the bar off the content behind it.
     shadowColor: '#000',
     shadowOpacity: 0.45,
@@ -132,7 +138,7 @@ const styles = StyleSheet.create({
   },
   tint: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(12,13,16,0.55)',
+    backgroundColor: colors.scrim,
   },
   tab: {
     flex: 1,

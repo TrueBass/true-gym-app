@@ -1,12 +1,16 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { colors, fonts, radius, spacing } from '../theme';
+import { fonts, radius, spacing } from '../theme';
+import { useTheme, useThemedStyles } from '../ThemeContext';
 
 export function Field({ label, style, ...props }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   return (
     <View style={[styles.fieldWrap, style]}>
       {!!label && <Text style={styles.label}>{label}</Text>}
       <TextInput
-        placeholderTextColor={colors.muted}
+        placeholderTextColor={colors.placeholder}
         selectionColor={colors.accent}
         {...props}
         style={[styles.input, props.multiline && styles.inputMultiline]}
@@ -16,6 +20,8 @@ export function Field({ label, style, ...props }) {
 }
 
 export function Button({ title, onPress, variant = 'primary', loading, disabled, style }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const isGhost = variant === 'ghost';
   const isDanger = variant === 'danger';
   const off = disabled || loading;
@@ -51,10 +57,13 @@ export function Button({ title, onPress, variant = 'primary', loading, disabled,
 }
 
 export function Card({ children, style }) {
+  const styles = useThemedStyles(makeStyles);
   return <View style={[styles.card, style]}>{children}</View>;
 }
 
 export function Empty({ title, hint }) {
+  const styles = useThemedStyles(makeStyles);
+
   return (
     <View style={styles.empty}>
       <Text style={styles.emptyTitle}>{title}</Text>
@@ -63,7 +72,8 @@ export function Empty({ title, hint }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors) =>
+  StyleSheet.create({
   fieldWrap: {
     marginBottom: spacing.md,
   },

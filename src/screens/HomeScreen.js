@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import FloatingTabBar from '../components/FloatingTabBar';
-import { colors, fonts, spacing } from '../theme';
+import { fonts, spacing } from '../theme';
 import AccountScreen from './AccountScreen';
 import PRScreen from './PRScreen';
 import WeightScreen from './WeightScreen';
+import { useThemedStyles } from '../ThemeContext';
 
 const TABS = [
   { key: 'prs', label: 'PRs', icon: 'barbell', title: 'Personal records', Screen: PRScreen },
@@ -14,6 +15,7 @@ const TABS = [
 
 export default function HomeScreen() {
   const [tab, setTab] = useState('prs');
+  const styles = useThemedStyles(makeStyles);
 
   const active = TABS.find((t) => t.key === tab);
 
@@ -30,7 +32,8 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors) =>
+  StyleSheet.create({
   flex: {
     flex: 1,
   },

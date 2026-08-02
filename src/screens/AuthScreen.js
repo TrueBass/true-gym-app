@@ -9,11 +9,13 @@ import {
   View,
 } from 'react-native';
 import { useAuth } from '../AuthContext';
+import { useThemedStyles } from '../ThemeContext';
 import { Button, Field } from '../components/ui';
-import { colors, fonts, spacing } from '../theme';
+import { fonts, spacing } from '../theme';
 
 export default function AuthScreen() {
   const { signUp, logIn } = useAuth();
+  const styles = useThemedStyles(makeStyles);
   const [mode, setMode] = useState('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -112,7 +114,8 @@ export default function AuthScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors) =>
+  StyleSheet.create({
   flex: {
     flex: 1,
   },

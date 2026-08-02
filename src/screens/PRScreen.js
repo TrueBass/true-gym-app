@@ -10,14 +10,16 @@ import {
   View,
 } from 'react-native';
 import { useAuth } from '../AuthContext';
+import { useThemedStyles } from '../ThemeContext';
 import { useTabBarInset } from '../components/FloatingTabBar';
 import { Button, Card, Empty, Field } from '../components/ui';
 import { deletePR, getPRs, savePR } from '../storage';
-import { colors, fonts, radius, spacing } from '../theme';
+import { fonts, radius, spacing } from '../theme';
 
 export default function PRScreen() {
   const { user } = useAuth();
   const tabBarInset = useTabBarInset();
+  const styles = useThemedStyles(makeStyles);
   const [prs, setPRs] = useState([]);
   const [exercise, setExercise] = useState('');
   const [weight, setWeight] = useState('');
@@ -111,7 +113,8 @@ export default function PRScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors) =>
+  StyleSheet.create({
   flex: {
     flex: 1,
   },
