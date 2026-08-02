@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import FloatingTabBar from '../components/FloatingTabBar';
+import IconCanary from '@tabler/icons-react-native/IconCanary';
 import { fonts, spacing } from '../theme';
 import AccountScreen from './AccountScreen';
+import PingScreen from './PingScreen';
 import PRScreen from './PRScreen';
 import WeightScreen from './WeightScreen';
 import { useThemedStyles } from '../ThemeContext';
@@ -10,6 +12,7 @@ import { useThemedStyles } from '../ThemeContext';
 const TABS = [
   { key: 'prs', label: 'PRs', icon: 'barbell', title: 'Personal records', Screen: PRScreen },
   { key: 'weight', label: 'Weight', icon: 'trending-up', title: 'Body weight', Screen: WeightScreen },
+  { key: 'ping', label: 'PingUIn', Icon: IconCanary, title: 'PingUIn', Screen: PingScreen },
   { key: 'account', label: 'Account', icon: 'person', title: 'Account', Screen: AccountScreen },
 ];
 

@@ -17,7 +17,7 @@ export default function AuthScreen() {
   const { signUp, logIn } = useAuth();
   const styles = useThemedStyles(makeStyles);
   const [mode, setMode] = useState('login');
-  const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -34,13 +34,15 @@ export default function AuthScreen() {
   async function submit() {
     setError('');
 
-    if (isSignup && !name.trim()) return setError('Please enter your name.');
+    if (isSignup && !username.trim()) return setError('Please choose a username.');
     if (!email.trim()) return setError('Please enter your email.');
     if (password.length < 6) return setError('Password must be at least 6 characters.');
 
     setBusy(true);
     try {
-      await (isSignup ? signUp({ name, email, password }) : logIn({ email, password }));
+      await (isSignup
+        ? signUp({ username, email, password })
+        : logIn({ email, password }));
     } catch (e) {
       setError(e.message);
     } finally {
@@ -63,12 +65,12 @@ export default function AuthScreen() {
 
         {isSignup && (
           <Field
-            label="Name"
-            value={name}
-            onChangeText={setName}
-            placeholder="Alex"
-            autoCapitalize="words"
-            autoComplete="name"
+            label="Username"
+            value={username}
+            onChangeText={setUsername}
+            placeholder="alex_lifts"
+            autoCapitalize="none"
+            autoCorrect={false}
           />
         )}
 

@@ -134,11 +134,11 @@ export default function AccountScreen() {
       >
         <Card style={styles.identity}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{(user.name || user.email)[0].toUpperCase()}</Text>
+            <Text style={styles.avatarText}>{(user.username || user.email)[0].toUpperCase()}</Text>
           </View>
           <View style={styles.flex}>
             <Text style={styles.name} numberOfLines={1}>
-              {user.name || 'Athlete'}
+              @{user.username}
             </Text>
             <Text style={styles.email} numberOfLines={1}>
               {user.email}

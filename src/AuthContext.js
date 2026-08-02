@@ -8,8 +8,10 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Clears records left by an older, incompatible shape before the first read.
     storage
-      .getCurrentUser()
+      .initStorage()
+      .then(() => storage.getCurrentUser())
       .then(setUser)
       .finally(() => setLoading(false));
   }, []);
@@ -23,6 +25,11 @@ export function AuthProvider({ children }) {
 
   const changeEmail = useCallback(
     async (form) => setUser(await storage.changeEmail(user.id, form)),
+    [user]
+  );
+
+  const changeUsername = useCallback(
+    async (form) => setUser(await storage.changeUsername(user.id, form)),
     [user]
   );
 
@@ -40,8 +47,8 @@ export function AuthProvider({ children }) {
   );
 
   const value = useMemo(
-    () => ({ user, loading, signUp, logIn, logOut, changeEmail, changePassword, deleteAccount }),
-    [user, loading, signUp, logIn, logOut, changeEmail, changePassword, deleteAccount]
+    () => ({ user, loading, signUp, logIn, logOut, changeEmail, changeUsername, changePassword, deleteAccount }),
+    [user, loading, signUp, logIn, logOut, changeEmail, changeUsername, changePassword, deleteAccount]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

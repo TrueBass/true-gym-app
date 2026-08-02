@@ -45,11 +45,15 @@ function TabItem({ tab, isActive, onPress }) {
       accessibilityLabel={tab.label}
     >
       <Animated.View style={iconStyle}>
-        <Ionicons
-          name={isActive ? tab.icon : `${tab.icon}-outline`}
-          size={22}
-          color={isActive ? colors.accent : colors.muted}
-        />
+        {tab.Icon ? (
+          <tab.Icon size={22} color={isActive ? colors.accent : colors.muted} />
+        ) : (
+          <Ionicons
+            name={isActive ? tab.icon : `${tab.icon}-outline`}
+            size={22}
+            color={isActive ? colors.accent : colors.muted}
+          />
+        )}
       </Animated.View>
       <Text style={[styles.label, isActive && styles.labelActive]}>{tab.label}</Text>
     </Pressable>

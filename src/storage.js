@@ -4,8 +4,20 @@ import * as Crypto from 'expo-crypto';
 const USERS_KEY = '@gym/users';
 const SESSION_KEY = '@gym/session';
 const THEME_KEY = '@gym/theme';
+const SCHEMA_KEY = '@gym/schema';
+
+/**
+ * Bumped whenever stored records change shape. On a mismatch every `@gym/*` key
+ * is dropped rather than migrated — this is a local-only app with no data worth
+ * preserving across a breaking change, and a stale record is worse than none.
+ * The theme survives, being a device preference rather than data.
+ */
+const SCHEMA_VERSION = '3';
 const prsKey = (userId) => `@gym/prs/${userId}`;
 const weightsKey = (userId) => `@gym/weights/${userId}`;
+const friendsKey = (userId) => `@gym/friends/${userId}`;
+const pingsKey = (userId) => `@gym/pings/${userId}`;
+const inboxKey = (userId) => `@gym/inbox/${userId}`;
 
 async function readJSON(key, fallback) {
   const raw = await AsyncStorage.getItem(key);
@@ -23,24 +35,60 @@ export const newId = () => `${Date.now().toString(36)}${Math.random().toString(3
 
 const normalizeEmail = (email) => email.trim().toLowerCase();
 
+/**
+ * The username is the handle friends ping, so it has to be unique. Displayed as
+ * typed, compared case-insensitively, and tolerant of a leading @.
+ */
+const cleanUsername = (username) => String(username ?? '').trim().replace(/^@+/, '');
+const usernameKey = (username) => cleanUsername(username).toLowerCase();
+
+const USERNAME_RE = /^[a-zA-Z0-9._-]{3,20}$/;
+
+function assertUsername(username) {
+  const clean = cleanUsername(username);
+  if (!USERNAME_RE.test(clean)) {
+    throw new Error('Usernames are 3-20 characters: letters, numbers, dot, dash or underscore.');
+  }
+  return clean;
+}
+
 async function hashPassword(password, salt) {
   return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, `${salt}:${password}`);
 }
 
+/* ---------------------------------- setup --------------------------------- */
+
+/** Runs once before anything reads storage. Safe to call repeatedly. */
+export async function initStorage() {
+  const stored = await AsyncStorage.getItem(SCHEMA_KEY);
+  if (stored === SCHEMA_VERSION) return false;
+
+  const keys = await AsyncStorage.getAllKeys();
+  const stale = keys.filter((k) => k.startsWith('@gym/') && k !== THEME_KEY && k !== SCHEMA_KEY);
+  if (stale.length) await AsyncStorage.multiRemove(stale);
+
+  await AsyncStorage.setItem(SCHEMA_KEY, SCHEMA_VERSION);
+  return true;
+}
+
 /* ---------------------------------- auth ---------------------------------- */
 
-export async function signUp({ name, email, password }) {
+export async function signUp({ username, email, password }) {
   const users = await readJSON(USERS_KEY, []);
   const cleanEmail = normalizeEmail(email);
+  const cleanedUsername = assertUsername(username);
 
   if (users.some((u) => u.email === cleanEmail)) {
     throw new Error('An account with that email already exists.');
+  }
+  if (users.some((u) => usernameKey(u.username) === usernameKey(cleanedUsername))) {
+    throw new Error('That username is taken.');
   }
 
   const salt = newId();
   const user = {
     id: newId(),
-    name: name.trim(),
+    username: cleanedUsername,
     email: cleanEmail,
     salt,
     hash: await hashPassword(password, salt),
@@ -76,7 +124,7 @@ export async function getCurrentUser() {
   return user ? publicUser(user) : null;
 }
 
-const publicUser = ({ id, name, email }) => ({ id, name, email });
+const publicUser = ({ id, username, email }) => ({ id, username, email });
 
 /* ---------------------------------- theme --------------------------------- */
 
@@ -111,6 +159,19 @@ export async function changeEmail(userId, { newEmail, currentPassword }) {
   return publicUser(updated);
 }
 
+export async function changeUsername(userId, { username, currentPassword }) {
+  const { users, user } = await authorize(userId, currentPassword);
+  const cleanedUsername = assertUsername(username);
+
+  if (users.some((u) => u.id !== userId && usernameKey(u.username) === usernameKey(cleanedUsername))) {
+    throw new Error('That username is taken.');
+  }
+
+  const updated = { ...user, username: cleanedUsername };
+  await writeJSON(USERS_KEY, users.map((u) => (u.id === userId ? updated : u)));
+  return publicUser(updated);
+}
+
 export async function changePassword(userId, { currentPassword, newPassword }) {
   const { users, user } = await authorize(userId, currentPassword);
 
@@ -125,7 +186,14 @@ export async function deleteAccount(userId, password) {
   const { users } = await authorize(userId, password);
 
   await writeJSON(USERS_KEY, users.filter((u) => u.id !== userId));
-  await AsyncStorage.multiRemove([prsKey(userId), weightsKey(userId), SESSION_KEY]);
+  await AsyncStorage.multiRemove([
+    prsKey(userId),
+    weightsKey(userId),
+    friendsKey(userId),
+    pingsKey(userId),
+    inboxKey(userId),
+    SESSION_KEY,
+  ]);
 }
 
 /* ----------------------------------- PRs ---------------------------------- */
@@ -168,5 +236,97 @@ export async function addWeight(userId, kg) {
 export async function deleteWeight(userId, entryId) {
   const next = (await getWeights(userId)).filter((e) => e.id !== entryId);
   await writeJSON(weightsKey(userId), next);
+  return next;
+}
+
+/* ---------------------------------- pings --------------------------------- */
+
+/**
+ * Pings are internal: a username must belong to a real account or the ping
+ * cannot be sent. Since there is no server, "real account" means an account on
+ * this device — delivery writes straight into the recipient's inbox.
+ */
+export async function findUserByUsername(username) {
+  const users = await readJSON(USERS_KEY, []);
+  const match = users.find((u) => usernameKey(u.username) === usernameKey(username));
+  return match ? publicUser(match) : null;
+}
+
+/** People this user has pinged before, most recent first. */
+export const getFriends = (userId) => readJSON(friendsKey(userId), []);
+
+/** Pings this user has sent. */
+export const getPings = (userId) => readJSON(pingsKey(userId), []);
+
+/** Pings sent to this user. */
+export const getInbox = (userId) => readJSON(inboxKey(userId), []);
+
+export async function sendPing(userId, { username, at }) {
+  const target = cleanUsername(username);
+  if (!target) throw new Error('Enter a username.');
+  if (!Number.isFinite(at)) throw new Error('Pick a date and time.');
+
+  const recipient = await findUserByUsername(target);
+  if (!recipient) throw new Error(`No user called @${target}.`);
+  if (recipient.id === userId) throw new Error("You can't ping yourself.");
+
+  const sender = (await readJSON(USERS_KEY, [])).find((u) => u.id === userId);
+  if (!sender) throw new Error('Account not found.');
+
+  const [friends, sent, inbox] = await Promise.all([
+    getFriends(userId),
+    getPings(userId),
+    getInbox(recipient.id),
+  ]);
+
+  const existing = friends.find((f) => usernameKey(f.username) === usernameKey(recipient.username));
+  const nextFriends = [
+    {
+      id: existing?.id ?? newId(),
+      userId: recipient.id,
+      username: recipient.username,
+      pingCount: (existing?.pingCount ?? 0) + 1,
+      lastPingedAt: Date.now(),
+    },
+    ...friends.filter((f) => f.id !== existing?.id),
+  ];
+
+  const sentAt = Date.now();
+  const ping = { id: newId(), toUserId: recipient.id, username: recipient.username, at, sentAt };
+  const received = {
+    id: newId(),
+    fromUserId: userId,
+    fromUsername: sender.username,
+    at,
+    sentAt,
+  };
+
+  const nextSent = [ping, ...sent];
+  const nextInbox = [received, ...inbox];
+
+  await Promise.all([
+    writeJSON(friendsKey(userId), nextFriends),
+    writeJSON(pingsKey(userId), nextSent),
+    writeJSON(inboxKey(recipient.id), nextInbox),
+  ]);
+
+  return { ping, friends: nextFriends, pings: nextSent, recipient };
+}
+
+export async function deletePing(userId, pingId) {
+  const next = (await getPings(userId)).filter((p) => p.id !== pingId);
+  await writeJSON(pingsKey(userId), next);
+  return next;
+}
+
+export async function dismissInboxPing(userId, pingId) {
+  const next = (await getInbox(userId)).filter((p) => p.id !== pingId);
+  await writeJSON(inboxKey(userId), next);
+  return next;
+}
+
+export async function removeFriend(userId, friendId) {
+  const next = (await getFriends(userId)).filter((f) => f.id !== friendId);
+  await writeJSON(friendsKey(userId), next);
   return next;
 }
