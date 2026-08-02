@@ -1,3 +1,9 @@
+// Imported per weight, not from the package root — the root re-exports all 16
+// faces and Metro bundles every one of them (~1.9 MB of unused .ttf).
+import { JetBrainsMono_400Regular } from '@expo-google-fonts/jetbrains-mono/400Regular';
+import { JetBrainsMono_500Medium } from '@expo-google-fonts/jetbrains-mono/500Medium';
+import { JetBrainsMono_700Bold } from '@expo-google-fonts/jetbrains-mono/700Bold';
+import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -21,6 +27,18 @@ function Root() {
 }
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    JetBrainsMono_400Regular,
+    JetBrainsMono_500Medium,
+    JetBrainsMono_700Bold,
+  });
+
+  // Every text style names a JetBrains Mono face, so hold the first frame until
+  // they resolve — otherwise the UI flashes in the system font and reflows.
+  if (!fontsLoaded) {
+    return <View style={styles.boot} />;
+  }
+
   return (
     <SafeAreaProvider>
       <AuthProvider>
@@ -35,6 +53,10 @@ export default function App() {
 
 const styles = StyleSheet.create({
   safe: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  boot: {
     flex: 1,
     backgroundColor: colors.bg,
   },

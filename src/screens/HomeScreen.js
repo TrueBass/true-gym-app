@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import FloatingTabBar from '../components/FloatingTabBar';
-import { colors, spacing } from '../theme';
+import { colors, fonts, spacing } from '../theme';
 import AccountScreen from './AccountScreen';
 import PRScreen from './PRScreen';
 import WeightScreen from './WeightScreen';
@@ -35,9 +35,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
+    fontFamily: fonts.bold,
     color: colors.text,
     fontSize: 24,
-    fontWeight: '800',
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.md,
   },

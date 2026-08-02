@@ -11,7 +11,7 @@ import {
 import { useAuth } from '../AuthContext';
 import { useTabBarInset } from '../components/FloatingTabBar';
 import { Button, Card, Field } from '../components/ui';
-import { colors, radius, spacing } from '../theme';
+import { colors, fonts, radius, spacing } from '../theme';
 
 /** Inline status line for a section — cleared whenever its form is edited again. */
 function Status({ error, success }) {
@@ -262,16 +262,17 @@ const styles = StyleSheet.create({
     marginRight: spacing.md,
   },
   avatarText: {
+    fontFamily: fonts.bold,
     color: colors.accentText,
     fontSize: 20,
-    fontWeight: '800',
   },
   name: {
+    fontFamily: fonts.bold,
     color: colors.text,
     fontSize: 18,
-    fontWeight: '700',
   },
   email: {
+    fontFamily: fonts.regular,
     color: colors.muted,
     fontSize: 13,
     marginTop: 2,
@@ -280,17 +281,19 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   sectionTitle: {
+    fontFamily: fonts.bold,
     color: colors.text,
     fontSize: 16,
-    fontWeight: '700',
     marginBottom: spacing.sm,
   },
   current: {
+    fontFamily: fonts.regular,
     color: colors.muted,
     fontSize: 13,
     marginBottom: spacing.md,
   },
   status: {
+    fontFamily: fonts.regular,
     fontSize: 14,
     marginBottom: spacing.md,
   },
@@ -307,6 +310,7 @@ const styles = StyleSheet.create({
     borderColor: colors.danger,
   },
   dangerText: {
+    fontFamily: fonts.regular,
     color: colors.muted,
     fontSize: 13,
     lineHeight: 19,

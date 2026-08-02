@@ -1,5 +1,5 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { colors, radius, spacing } from '../theme';
+import { colors, fonts, radius, spacing } from '../theme';
 
 export function Field({ label, style, ...props }) {
   return (
@@ -68,14 +68,15 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   label: {
+    fontFamily: fonts.medium,
     color: colors.muted,
     fontSize: 12,
-    fontWeight: '600',
     letterSpacing: 0.8,
     textTransform: 'uppercase',
     marginBottom: spacing.sm,
   },
   input: {
+    fontFamily: fonts.regular,
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
@@ -111,9 +112,9 @@ const styles = StyleSheet.create({
     opacity: 0.45,
   },
   buttonText: {
+    fontFamily: fonts.bold,
     color: colors.accentText,
     fontSize: 16,
-    fontWeight: '700',
   },
   buttonTextGhost: {
     color: colors.text,
@@ -134,11 +135,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   emptyTitle: {
+    fontFamily: fonts.medium,
     color: colors.text,
     fontSize: 16,
-    fontWeight: '600',
   },
   emptyHint: {
+    fontFamily: fonts.regular,
     color: colors.muted,
     fontSize: 14,
     marginTop: spacing.xs,

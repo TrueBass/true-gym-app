@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useAuth } from '../AuthContext';
 import { Button, Field } from '../components/ui';
-import { colors, spacing } from '../theme';
+import { colors, fonts, spacing } from '../theme';
 
 export default function AuthScreen() {
   const { signUp, logIn } = useAuth();
@@ -125,17 +125,20 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
   },
   logo: {
+    fontFamily: fonts.bold,
     color: colors.text,
-    fontSize: 34,
-    fontWeight: '800',
-    letterSpacing: 2,
+    fontSize: 32,
+    // Monospace already carries wide sidebearings; the old tracking was too loose.
+    letterSpacing: 1,
   },
   tagline: {
+    fontFamily: fonts.regular,
     color: colors.muted,
     fontSize: 15,
     marginTop: spacing.sm,
   },
   error: {
+    fontFamily: fonts.regular,
     color: colors.danger,
     fontSize: 14,
     marginBottom: spacing.md,
@@ -148,11 +151,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   switchText: {
+    fontFamily: fonts.regular,
     color: colors.muted,
     fontSize: 14,
   },
   switchLink: {
+    fontFamily: fonts.bold,
     color: colors.accent,
-    fontWeight: '700',
   },
 });

@@ -25,3 +25,14 @@ export const radius = {
   md: 12,
   lg: 16,
 };
+
+/**
+ * JetBrains Mono throughout. Styles name a face directly rather than setting
+ * fontWeight — with a custom family, iOS synthesises weights it wasn't given,
+ * which renders inconsistently against the real bold.
+ */
+export const fonts = {
+  regular: 'JetBrainsMono_400Regular',
+  medium: 'JetBrainsMono_500Medium',
+  bold: 'JetBrainsMono_700Bold',
+};

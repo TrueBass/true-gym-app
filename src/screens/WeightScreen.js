@@ -13,7 +13,7 @@ import { useAuth } from '../AuthContext';
 import { useTabBarInset } from '../components/FloatingTabBar';
 import { Button, Card, Empty, Field } from '../components/ui';
 import { addWeight, deleteWeight, getWeights } from '../storage';
-import { colors, radius, spacing } from '../theme';
+import { colors, fonts, radius, spacing } from '../theme';
 
 /** Below this, a change is noise from scale variance rather than a real trend. */
 const FLAT_THRESHOLD_KG = 0.2;
@@ -219,9 +219,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   summaryLabel: {
+    fontFamily: fonts.medium,
     color: colors.muted,
     fontSize: 12,
-    fontWeight: '600',
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
@@ -232,14 +232,14 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   current: {
+    fontFamily: fonts.bold,
     color: colors.text,
     fontSize: 40,
-    fontWeight: '800',
   },
   currentUnit: {
+    fontFamily: fonts.medium,
     color: colors.muted,
     fontSize: 16,
-    fontWeight: '600',
   },
   badge: {
     borderWidth: 1,
@@ -248,8 +248,8 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   badgeText: {
+    fontFamily: fonts.bold,
     fontSize: 13,
-    fontWeight: '700',
   },
   spark: {
     flexDirection: 'row',
@@ -276,12 +276,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   deltaLabel: {
+    fontFamily: fonts.regular,
     color: colors.muted,
     fontSize: 12,
   },
   deltaValue: {
+    fontFamily: fonts.bold,
     fontSize: 17,
-    fontWeight: '700',
     marginTop: 2,
   },
   divider: {
@@ -294,14 +295,15 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   error: {
+    fontFamily: fonts.regular,
     color: colors.danger,
     fontSize: 14,
     marginBottom: spacing.md,
   },
   sectionTitle: {
+    fontFamily: fonts.medium,
     color: colors.muted,
     fontSize: 12,
-    fontWeight: '600',
     letterSpacing: 0.8,
     textTransform: 'uppercase',
     marginBottom: spacing.sm,
@@ -315,23 +317,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rowWeight: {
+    fontFamily: fonts.bold,
     color: colors.text,
     fontSize: 17,
-    fontWeight: '700',
   },
   unit: {
+    fontFamily: fonts.medium,
     color: colors.muted,
     fontSize: 13,
-    fontWeight: '600',
   },
   date: {
+    fontFamily: fonts.regular,
     color: colors.muted,
     fontSize: 12,
     marginTop: 2,
   },
   rowDelta: {
+    fontFamily: fonts.bold,
     fontSize: 14,
-    fontWeight: '700',
     marginLeft: spacing.sm,
   },
   remove: {
@@ -344,8 +347,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   removeText: {
+    fontFamily: fonts.bold,
     color: colors.muted,
     fontSize: 14,
-    fontWeight: '700',
   },
 });

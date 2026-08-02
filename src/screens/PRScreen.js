@@ -13,7 +13,7 @@ import { useAuth } from '../AuthContext';
 import { useTabBarInset } from '../components/FloatingTabBar';
 import { Button, Card, Empty, Field } from '../components/ui';
 import { deletePR, getPRs, savePR } from '../storage';
-import { colors, radius, spacing } from '../theme';
+import { colors, fonts, radius, spacing } from '../theme';
 
 export default function PRScreen() {
   const { user } = useAuth();
@@ -122,11 +122,13 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   error: {
+    fontFamily: fonts.regular,
     color: colors.danger,
     fontSize: 14,
     marginBottom: spacing.md,
   },
   hint: {
+    fontFamily: fonts.regular,
     color: colors.muted,
     fontSize: 12,
     marginTop: spacing.sm,
@@ -142,24 +144,25 @@ const styles = StyleSheet.create({
     marginRight: spacing.sm,
   },
   exercise: {
+    fontFamily: fonts.medium,
     color: colors.text,
     fontSize: 16,
-    fontWeight: '600',
   },
   date: {
+    fontFamily: fonts.regular,
     color: colors.muted,
     fontSize: 12,
     marginTop: 2,
   },
   weight: {
+    fontFamily: fonts.bold,
     color: colors.accent,
     fontSize: 20,
-    fontWeight: '800',
   },
   unit: {
+    fontFamily: fonts.medium,
     color: colors.muted,
     fontSize: 13,
-    fontWeight: '600',
   },
   remove: {
     marginLeft: spacing.md,
@@ -171,8 +174,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   removeText: {
+    fontFamily: fonts.bold,
     color: colors.muted,
     fontSize: 14,
-    fontWeight: '700',
   },
 });

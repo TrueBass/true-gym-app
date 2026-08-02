@@ -3,7 +3,7 @@ import { BlurView } from 'expo-blur';
 import { useEffect, useRef } from 'react';
 import { Animated, Keyboard, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, spacing } from '../theme';
+import { colors, fonts, spacing } from '../theme';
 
 const BAR_HEIGHT = 62;
 const BAR_MARGIN = spacing.md;
@@ -146,9 +146,9 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   label: {
+    fontFamily: fonts.medium,
     color: colors.muted,
     fontSize: 11,
-    fontWeight: '600',
   },
   labelActive: {
     color: colors.accent,
