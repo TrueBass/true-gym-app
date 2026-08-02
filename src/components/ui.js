@@ -17,6 +17,7 @@ export function Field({ label, style, ...props }) {
 
 export function Button({ title, onPress, variant = 'primary', loading, disabled, style }) {
   const isGhost = variant === 'ghost';
+  const isDanger = variant === 'danger';
   const off = disabled || loading;
 
   return (
@@ -26,15 +27,24 @@ export function Button({ title, onPress, variant = 'primary', loading, disabled,
       style={({ pressed }) => [
         styles.button,
         isGhost && styles.buttonGhost,
+        isDanger && styles.buttonDanger,
         off && styles.buttonOff,
         pressed && !off && styles.buttonPressed,
         style,
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={isGhost ? colors.text : colors.accentText} />
+        <ActivityIndicator color={isGhost || isDanger ? colors.text : colors.accentText} />
       ) : (
-        <Text style={[styles.buttonText, isGhost && styles.buttonTextGhost]}>{title}</Text>
+        <Text
+          style={[
+            styles.buttonText,
+            isGhost && styles.buttonTextGhost,
+            isDanger && styles.buttonTextDanger,
+          ]}
+        >
+          {title}
+        </Text>
       )}
     </Pressable>
   );
@@ -91,6 +101,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  buttonDanger: {
+    backgroundColor: colors.danger,
+  },
   buttonPressed: {
     opacity: 0.75,
   },
@@ -103,6 +116,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   buttonTextGhost: {
+    color: colors.text,
+  },
+  buttonTextDanger: {
     color: colors.text,
   },
   card: {

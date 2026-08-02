@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useAuth } from '../AuthContext';
+import { useTabBarInset } from '../components/FloatingTabBar';
 import { Button, Card, Empty, Field } from '../components/ui';
 import { addWeight, deleteWeight, getWeights } from '../storage';
 import { colors, radius, spacing } from '../theme';
@@ -49,6 +50,7 @@ function Sparkline({ entries }) {
 
 export default function WeightScreen() {
   const { user } = useAuth();
+  const tabBarInset = useTabBarInset();
   const [entries, setEntries] = useState([]);
   const [kg, setKg] = useState('');
   const [error, setError] = useState('');
@@ -105,7 +107,7 @@ export default function WeightScreen() {
       <FlatList
         data={entries}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: tabBarInset }]}
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={
           <>
@@ -212,7 +214,6 @@ const styles = StyleSheet.create({
   },
   list: {
     padding: spacing.md,
-    paddingBottom: spacing.xl,
   },
   summary: {
     marginBottom: spacing.md,

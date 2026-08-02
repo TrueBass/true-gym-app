@@ -10,12 +10,14 @@ import {
   View,
 } from 'react-native';
 import { useAuth } from '../AuthContext';
+import { useTabBarInset } from '../components/FloatingTabBar';
 import { Button, Card, Empty, Field } from '../components/ui';
 import { deletePR, getPRs, savePR } from '../storage';
 import { colors, radius, spacing } from '../theme';
 
 export default function PRScreen() {
   const { user } = useAuth();
+  const tabBarInset = useTabBarInset();
   const [prs, setPRs] = useState([]);
   const [exercise, setExercise] = useState('');
   const [weight, setWeight] = useState('');
@@ -60,7 +62,7 @@ export default function PRScreen() {
       <FlatList
         data={prs}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: tabBarInset }]}
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={
           <Card style={styles.form}>
@@ -115,7 +117,6 @@ const styles = StyleSheet.create({
   },
   list: {
     padding: spacing.md,
-    paddingBottom: spacing.xl,
   },
   form: {
     marginBottom: spacing.lg,

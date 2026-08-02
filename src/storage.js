@@ -77,6 +77,50 @@ export async function getCurrentUser() {
 
 const publicUser = ({ id, name, email }) => ({ id, name, email });
 
+/* --------------------------------- account -------------------------------- */
+
+/** Loads the stored user record and verifies `password` before any change to it. */
+async function authorize(userId, password) {
+  const users = await readJSON(USERS_KEY, []);
+  const user = users.find((u) => u.id === userId);
+  if (!user) throw new Error('Account not found.');
+  if ((await hashPassword(password, user.salt)) !== user.hash) {
+    throw new Error('Current password is incorrect.');
+  }
+  return { users, user };
+}
+
+export async function changeEmail(userId, { newEmail, currentPassword }) {
+  const { users, user } = await authorize(userId, currentPassword);
+  const cleanEmail = normalizeEmail(newEmail);
+
+  if (cleanEmail === user.email) throw new Error('That is already your email.');
+  if (users.some((u) => u.id !== userId && u.email === cleanEmail)) {
+    throw new Error('An account with that email already exists.');
+  }
+
+  const updated = { ...user, email: cleanEmail };
+  await writeJSON(USERS_KEY, users.map((u) => (u.id === userId ? updated : u)));
+  return publicUser(updated);
+}
+
+export async function changePassword(userId, { currentPassword, newPassword }) {
+  const { users, user } = await authorize(userId, currentPassword);
+
+  // New salt per change, so the stored hash never repeats even for a reused password.
+  const salt = newId();
+  const updated = { ...user, salt, hash: await hashPassword(newPassword, salt) };
+  await writeJSON(USERS_KEY, users.map((u) => (u.id === userId ? updated : u)));
+}
+
+/** Removes the account plus everything it owns, then ends the session. */
+export async function deleteAccount(userId, password) {
+  const { users } = await authorize(userId, password);
+
+  await writeJSON(USERS_KEY, users.filter((u) => u.id !== userId));
+  await AsyncStorage.multiRemove([prsKey(userId), weightsKey(userId), SESSION_KEY]);
+}
+
 /* ----------------------------------- PRs ---------------------------------- */
 
 export const getPRs = (userId) => readJSON(prsKey(userId), []);
