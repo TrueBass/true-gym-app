@@ -1,11 +1,12 @@
 {
   "expo": {
-    "name": "true-gym-app",
+    "name": "True Gym",
     "slug": "true-gym-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0C0D10",
     "ios": {
       "supportsTablet": true
     },
@@ -19,6 +20,9 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-font"
+    ]
   }
 }
