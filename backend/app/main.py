@@ -1,11 +1,23 @@
+import warnings
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic.warnings import UnsupportedFieldAttributeWarning
 
 from app.config import settings
 from app.errors import DomainError
 from app.routers import account, auth, prs, weights
+
+# FastAPI clones each body field and re-attaches the field's alias onto the
+# annotated type behind it. Where that type is one of the shared aliases in
+# schemas.py (Username, Email, Password, ...), pydantic 2.13 warns the alias
+# "has no effect" — but it plainly does: every request model's aliases come out
+# camelCase, and the endpoints are exercised through those names. The warning
+# fires on the first request to each route, three times per field, which would
+# bury anything worth reading.
+warnings.filterwarnings("ignore", category=UnsupportedFieldAttributeWarning)
 
 app = FastAPI(title="True Gym API", version="0.1.0")
 
