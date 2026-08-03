@@ -6,7 +6,8 @@ JavaScript — `accessToken`, not `access_token`. Requests accept either spellin
 
 import re
 import uuid
-from typing import Annotated
+from datetime import datetime
+from typing import TYPE_CHECKING, Annotated
 
 from email_validator import EmailNotValidError, validate_email
 from pydantic import AfterValidator, BaseModel, ConfigDict
@@ -18,6 +19,13 @@ MIN_PASSWORD_LENGTH = 6
 # Argon2 is happy with any length; the cap is so a megabyte of "password" can't
 # be used to make the server do expensive work.
 MAX_PASSWORD_LENGTH = 128
+# Both match their columns: personal_records.exercise is VARCHAR(100) and
+# weight_kg is NUMERIC(6, 2).
+MAX_EXERCISE_LENGTH = 100
+MAX_LIFT_KG = 9999.99
+
+if TYPE_CHECKING:
+    from app.models import PersonalRecord
 
 
 class ApiModel(BaseModel):
@@ -96,3 +104,52 @@ class TokenPair(ApiModel):
 class AuthResponse(ApiModel):
     user: UserOut
     tokens: TokenPair
+
+
+def _clean_exercise(value: str) -> str:
+    cleaned = " ".join(value.split())  # collapse stray double spaces while trimming
+    if not cleaned:
+        raise ValueError("Enter an exercise name.")
+    if len(cleaned) > MAX_EXERCISE_LENGTH:
+        raise ValueError(
+            f"Exercise names are at most {MAX_EXERCISE_LENGTH} characters."
+        )
+    return cleaned
+
+
+def _check_lift(value: float) -> float:
+    if value <= 0:
+        raise ValueError("Enter a weight greater than 0.")
+    if value > MAX_LIFT_KG:
+        raise ValueError("That weight looks too large.")
+    return value
+
+
+Exercise = Annotated[str, AfterValidator(_clean_exercise)]
+# Bounded by the column, not by opinion: weight_kg is NUMERIC(6, 2), and a
+# larger number would fail in the driver as a 500 rather than as a sentence the
+# user can read.
+Lift = Annotated[float, AfterValidator(_check_lift)]
+
+
+class PersonalRecordIn(ApiModel):
+    exercise: Exercise
+    weight: Lift
+
+
+class PersonalRecordOut(ApiModel):
+    id: int
+    exercise: str
+    weight: float
+    updated_at: datetime
+
+    @classmethod
+    def of(cls, record: "PersonalRecord") -> "PersonalRecordOut":
+        # Built by hand rather than from attributes: the column is weight_kg and
+        # carries a Decimal, while the app reads `weight` and expects a number.
+        return cls(
+            id=record.id,
+            exercise=record.exercise,
+            weight=float(record.weight_kg),
+            updated_at=record.updated_at,
+        )
