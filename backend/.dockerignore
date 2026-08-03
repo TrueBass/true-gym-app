@@ -1,0 +1,21 @@
+# .env is deliberately absent from the image — compose passes it at runtime, so
+# the secrets stay out of every layer and out of anything built from this image.
+.env
+.env.*
+!.env.example
+
+.git
+.gitignore
+.dockerignore
+Dockerfile
+docker-compose.yml
+
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+.claude
+.idea/
+.vscode/
+*.log

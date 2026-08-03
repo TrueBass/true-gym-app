@@ -1,0 +1,30 @@
+services:
+  api:
+    build: .
+    env_file: .env
+    # Postgres is still on the host, not in Docker. Host networking lets the
+    # container reach it at the same localhost:5432 that .env already names —
+    # no listen_addresses or pg_hba.conf edits, and the file works unchanged
+    # whether the API runs in a container or straight from the venv.
+    #
+    # It also means uvicorn binds the host's interfaces directly, so a phone on
+    # the same network can reach the API at http://<this machine>:8000 — which
+    # is what Expo Go needs.
+    #
+    # When the database moves into Docker: drop network_mode, add
+    #   ports: ["8000:8000"]
+    # a db service, and point DATABASE_URL at that service's name instead of
+    # localhost. Nothing in the image changes.
+    network_mode: host
+    restart: unless-stopped
+    healthcheck:
+      # curl isn't in the slim image, and Python is right there.
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen("http://localhost:8000/health")
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
