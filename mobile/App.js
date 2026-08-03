@@ -8,6 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './src/AuthContext';
+import { DataProvider } from './src/DataContext';
 import { ThemeProvider, useTheme } from './src/ThemeContext';
 import AuthScreen from './src/screens/AuthScreen';
 import HomeScreen from './src/screens/HomeScreen';
@@ -52,7 +53,9 @@ export default function App() {
             until they resolve — otherwise the UI flashes in the system font. */}
         {fontsLoaded ? (
           <AuthProvider>
-            <Root />
+            <DataProvider>
+              <Root />
+            </DataProvider>
           </AuthProvider>
         ) : (
           <Boot />

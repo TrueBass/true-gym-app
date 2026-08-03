@@ -147,16 +147,15 @@ export const setThemePreference = (key) => AsyncStorage.setItem(THEME_KEY, key);
 
 export const getPRs = () => request('/prs');
 
-/** POST is idempotent by exercise name, so this both creates and updates. */
-export async function savePR({ exercise, weight }) {
-  await request('/prs', { method: 'POST', body: { exercise, weight } });
-  return getPRs();
-}
+/**
+ * POST is idempotent by exercise name, so this both creates and updates, and it
+ * answers with the saved record — enough for the caller to update its own list
+ * without asking for the whole thing again.
+ */
+export const savePR = ({ exercise, weight }) =>
+  request('/prs', { method: 'POST', body: { exercise, weight } });
 
-export async function deletePR(recordId) {
-  await request(`/prs/${recordId}`, { method: 'DELETE' });
-  return getPRs();
-}
+export const deletePR = (recordId) => request(`/prs/${recordId}`, { method: 'DELETE' });
 
 /* --------------------------------- weight --------------------------------- */
 
@@ -169,14 +168,10 @@ export async function getWeights() {
 }
 
 export async function addWeight(kg) {
-  await request('/weights', { method: 'POST', body: { kg } });
-  return getWeights();
+  return toEntry(await request('/weights', { method: 'POST', body: { kg } }));
 }
 
-export async function deleteWeight(entryId) {
-  await request(`/weights/${entryId}`, { method: 'DELETE' });
-  return getWeights();
-}
+export const deleteWeight = (entryId) => request(`/weights/${entryId}`, { method: 'DELETE' });
 
 /* ---------------------------------- pings --------------------------------- */
 

@@ -1,8 +1,9 @@
 import IconX from '@tabler/icons-react-native/IconX';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   FlatList,
+  RefreshControl,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -10,11 +11,10 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useAuth } from '../AuthContext';
+import { useData } from '../DataContext';
 import { useTheme, useThemedStyles } from '../ThemeContext';
 import { useTabBarInset } from '../components/FloatingTabBar';
-import { Button, Card, Empty, Field } from '../components/ui';
-import { addWeight, deleteWeight, getWeights } from '../storage';
+import { Button, Card, Empty, Field, Notice } from '../components/ui';
 import { fonts, radius, spacing } from '../theme';
 
 /** Below this, a change is noise from scale variance rather than a real trend. */
@@ -52,17 +52,12 @@ function Sparkline({ entries }) {
 }
 
 export default function WeightScreen() {
-  const { user } = useAuth();
   const tabBarInset = useTabBarInset();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const [entries, setEntries] = useState([]);
+  const { weights: entries, loading, error: loadError, refresh, addWeight, deleteWeight } = useData();
   const [kg, setKg] = useState('');
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    getWeights().then(setEntries);
-  }, [user.id]);
 
   const stats = useMemo(() => {
     if (entries.length === 0) return null;
@@ -83,9 +78,13 @@ export default function WeightScreen() {
 
     if (!Number.isFinite(value) || value <= 0) return setError('Enter a weight greater than 0.');
 
-    setEntries(await addWeight(value));
-    setKg('');
-  }, [user.id, kg]);
+    try {
+      await addWeight(value);
+      setKg('');
+    } catch (e) {
+      setError(e.message);
+    }
+  }, [addWeight, kg]);
 
   const confirmRemove = useCallback(
     (entry) => {
@@ -94,11 +93,11 @@ export default function WeightScreen() {
         {
           text: 'Remove',
           style: 'destructive',
-          onPress: async () => setEntries(await deleteWeight(entry.id)),
+          onPress: () => deleteWeight(entry.id).catch((e) => setError(e.message)),
         },
       ]);
     },
-    [user.id]
+    [deleteWeight]
   );
 
   const overall = stats ? trendOf(stats.sinceStart, colors) : null;
@@ -114,8 +113,13 @@ export default function WeightScreen() {
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={[styles.list, { paddingBottom: tabBarInset }]}
         keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl refreshing={loading} onRefresh={refresh} tintColor={colors.muted} />
+        }
         ListHeaderComponent={
           <>
+            {!!loadError && <Notice message={loadError} onRetry={refresh} />}
+
             {stats && (
               <Card style={styles.summary}>
                 <Text style={styles.summaryLabel}>Current weight</Text>

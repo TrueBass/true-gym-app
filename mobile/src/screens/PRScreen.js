@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
+  RefreshControl,
   TextInput,
   KeyboardAvoidingView,
   Platform,
@@ -12,11 +13,10 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useAuth } from '../AuthContext';
+import { useData } from '../DataContext';
 import { useTheme, useThemedStyles } from '../ThemeContext';
 import { useTabBarInset } from '../components/FloatingTabBar';
-import { Button, Card, Empty, Field } from '../components/ui';
-import { deletePR, getPRs, savePR } from '../storage';
+import { Button, Card, Empty, Field, Notice } from '../components/ui';
 import { fonts, radius, spacing } from '../theme';
 
 /**
@@ -123,17 +123,13 @@ function PRRow({ item, onSave, onRemove, styles }) {
 }
 
 export default function PRScreen() {
-  const { user } = useAuth();
   const tabBarInset = useTabBarInset();
   const styles = useThemedStyles(makeStyles);
-  const [prs, setPRs] = useState([]);
+  const { colors } = useTheme();
+  const { prs, loading, error: loadError, refresh, savePR, deletePR } = useData();
   const [exercise, setExercise] = useState('');
   const [weight, setWeight] = useState('');
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    getPRs().then(setPRs);
-  }, [user.id]);
 
   const add = useCallback(async () => {
     setError('');
@@ -142,14 +138,24 @@ export default function PRScreen() {
     if (!exercise.trim()) return setError('Enter an exercise name.');
     if (!Number.isFinite(kg) || kg <= 0) return setError('Enter a weight greater than 0.');
 
-    setPRs(await savePR({ exercise, weight: kg }));
-    setExercise('');
-    setWeight('');
-  }, [user.id, exercise, weight]);
+    try {
+      await savePR({ exercise, weight: kg });
+      setExercise('');
+      setWeight('');
+    } catch (e) {
+      setError(e.message);
+    }
+  }, [savePR, exercise, weight]);
 
   const updateWeight = useCallback(
-    async (pr, kg) => setPRs(await savePR({ exercise: pr.exercise, weight: kg })),
-    [user.id]
+    async (pr, kg) => {
+      try {
+        await savePR({ exercise: pr.exercise, weight: kg });
+      } catch (e) {
+        setError(e.message);
+      }
+    },
+    [savePR]
   );
 
   const confirmRemove = useCallback(
@@ -159,11 +165,11 @@ export default function PRScreen() {
         {
           text: 'Remove',
           style: 'destructive',
-          onPress: async () => setPRs(await deletePR(pr.id)),
+          onPress: () => deletePR(pr.id).catch((e) => setError(e.message)),
         },
       ]);
     },
-    [user.id]
+    [deletePR]
   );
 
   return (
@@ -177,27 +183,34 @@ export default function PRScreen() {
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={[styles.list, { paddingBottom: tabBarInset }]}
         keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl refreshing={loading} onRefresh={refresh} tintColor={colors.muted} />
+        }
         ListHeaderComponent={
-          <Card style={styles.form}>
-            <Field
-              label="Exercise"
-              value={exercise}
-              onChangeText={setExercise}
-              placeholder="Bench press"
-              autoCapitalize="words"
-            />
-            <Field
-              label="Weight (kg)"
-              value={weight}
-              onChangeText={setWeight}
-              placeholder="100"
-              keyboardType="decimal-pad"
-              onSubmitEditing={add}
-            />
-            {!!error && <Text style={styles.error}>{error}</Text>}
-            <Button title="Save PR" onPress={add} />
-            <Text style={styles.hint}>Tap a weight to edit it.</Text>
-          </Card>
+          <>
+            {!!loadError && <Notice message={loadError} onRetry={refresh} />}
+
+            <Card style={styles.form}>
+              <Field
+                label="Exercise"
+                value={exercise}
+                onChangeText={setExercise}
+                placeholder="Bench press"
+                autoCapitalize="words"
+              />
+              <Field
+                label="Weight (kg)"
+                value={weight}
+                onChangeText={setWeight}
+                placeholder="100"
+                keyboardType="decimal-pad"
+                onSubmitEditing={add}
+              />
+              {!!error && <Text style={styles.error}>{error}</Text>}
+              <Button title="Save PR" onPress={add} />
+              <Text style={styles.hint}>Tap a weight to edit it.</Text>
+            </Card>
+          </>
         }
         ListEmptyComponent={
           <Empty title="No PRs yet" hint="Add your first personal record above." />

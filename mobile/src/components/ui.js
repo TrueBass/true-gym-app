@@ -56,6 +56,22 @@ export function Button({ title, onPress, variant = 'primary', loading, disabled,
   );
 }
 
+/**
+ * Shown when the app can't reach the API. Carries the message the request layer
+ * produced — which names the address for an unreachable server — plus a way to
+ * try again without leaving the screen.
+ */
+export function Notice({ message, onRetry }) {
+  const styles = useThemedStyles(makeStyles);
+
+  return (
+    <View style={styles.notice}>
+      <Text style={styles.noticeText}>{message}</Text>
+      {!!onRetry && <Button title="Try again" onPress={onRetry} variant="ghost" />}
+    </View>
+  );
+}
+
 export function Card({ children, style }) {
   const styles = useThemedStyles(makeStyles);
   return <View style={[styles.card, style]}>{children}</View>;
@@ -131,6 +147,21 @@ const makeStyles = (colors) =>
   },
   buttonTextDanger: {
     color: colors.text,
+  },
+  notice: {
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  noticeText: {
+    fontFamily: fonts.regular,
+    color: colors.text,
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: spacing.md,
   },
   card: {
     backgroundColor: colors.card,
