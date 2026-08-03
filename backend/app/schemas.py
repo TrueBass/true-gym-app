@@ -108,6 +108,25 @@ class AuthResponse(ApiModel):
     tokens: TokenPair
 
 
+class ChangeEmailRequest(ApiModel):
+    new_email: Email
+    current_password: str
+
+
+class ChangeUsernameRequest(ApiModel):
+    username: Username
+    current_password: str
+
+
+class ChangePasswordRequest(ApiModel):
+    current_password: str
+    new_password: Password
+
+
+class DeleteAccountRequest(ApiModel):
+    password: str
+
+
 def _clean_exercise(value: str) -> str:
     cleaned = " ".join(value.split())  # collapse stray double spaces while trimming
     if not cleaned:

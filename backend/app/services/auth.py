@@ -9,7 +9,7 @@ worth little.
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -111,7 +111,7 @@ async def rotate_session(session: AsyncSession, refresh_token: str) -> TokenPair
         # An already-spent token came back. Either it was stolen after use or a
         # copy of it was, and there is no way to tell which holder is genuine —
         # so end every session and make both sides log in.
-        await revoke_all(session, stored.user_id)
+        await end_all_sessions(session, stored.user_id)
         raise AuthError(_DEAD_SESSION)
     if stored.expires_at <= now:
         raise AuthError(_DEAD_SESSION)
@@ -145,12 +145,17 @@ async def end_session(session: AsyncSession, refresh_token: str) -> None:
     await session.commit()
 
 
-async def revoke_all(session: AsyncSession, user_id: uuid.UUID) -> None:
-    """Drop every live session for a user — used after a password change and
-    when a spent refresh token reappears."""
-    await session.execute(
-        update(RefreshToken)
-        .where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
-        .values(revoked_at=datetime.now(timezone.utc))
-    )
+async def end_all_sessions(session: AsyncSession, user_id: uuid.UUID) -> None:
+    """Log a user out everywhere — after a password change, and after the theft
+    signal above.
+
+    Deletes rather than revokes, for the same reason logging out does. A
+    password change is followed by the user's other phone waking up and
+    refreshing on its own; if that met a revoked row it would read as a token
+    spent twice, and the cascade would log the user out of the device they are
+    holding. A deleted row is simply unknown, so the other phone gets a plain
+    401 and stops there. Only rotation leaves revoked rows behind, which is what
+    keeps them meaningful as a theft signal.
+    """
+    await session.execute(delete(RefreshToken).where(RefreshToken.user_id == user_id))
     await session.commit()
