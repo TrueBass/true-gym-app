@@ -11,17 +11,17 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# The URL comes from the app's settings rather than alembic.ini, and it is the
-# one db.py already normalised — so offline SQL is generated against the same
-# dialect the API connects with.
-config.set_main_option("sqlalchemy.url", url.render_as_string(hide_password=False))
-
 target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
+    # The URL is handed to Alembic directly rather than through
+    # config.set_main_option: values set there are read back by configparser,
+    # which treats % as interpolation syntax and chokes on a password with any
+    # percent-escape in it. It is the URL db.py already normalised, so offline
+    # SQL is generated against the same dialect the API connects with.
     context.configure(
-        url=config.get_main_option("sqlalchemy.url"),
+        url=url.render_as_string(hide_password=False),
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
