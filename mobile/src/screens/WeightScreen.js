@@ -61,7 +61,7 @@ export default function WeightScreen() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    getWeights(user.id).then(setEntries);
+    getWeights().then(setEntries);
   }, [user.id]);
 
   const stats = useMemo(() => {
@@ -83,7 +83,7 @@ export default function WeightScreen() {
 
     if (!Number.isFinite(value) || value <= 0) return setError('Enter a weight greater than 0.');
 
-    setEntries(await addWeight(user.id, value));
+    setEntries(await addWeight(value));
     setKg('');
   }, [user.id, kg]);
 
@@ -94,7 +94,7 @@ export default function WeightScreen() {
         {
           text: 'Remove',
           style: 'destructive',
-          onPress: async () => setEntries(await deleteWeight(user.id, entry.id)),
+          onPress: async () => setEntries(await deleteWeight(entry.id)),
         },
       ]);
     },
@@ -111,7 +111,7 @@ export default function WeightScreen() {
     >
       <FlatList
         data={entries}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => String(item.id)}
         contentContainerStyle={[styles.list, { paddingBottom: tabBarInset }]}
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={

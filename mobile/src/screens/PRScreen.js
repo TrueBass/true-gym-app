@@ -132,7 +132,7 @@ export default function PRScreen() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    getPRs(user.id).then(setPRs);
+    getPRs().then(setPRs);
   }, [user.id]);
 
   const add = useCallback(async () => {
@@ -142,13 +142,13 @@ export default function PRScreen() {
     if (!exercise.trim()) return setError('Enter an exercise name.');
     if (!Number.isFinite(kg) || kg <= 0) return setError('Enter a weight greater than 0.');
 
-    setPRs(await savePR(user.id, { exercise, weight: kg }));
+    setPRs(await savePR({ exercise, weight: kg }));
     setExercise('');
     setWeight('');
   }, [user.id, exercise, weight]);
 
   const updateWeight = useCallback(
-    async (pr, kg) => setPRs(await savePR(user.id, { exercise: pr.exercise, weight: kg })),
+    async (pr, kg) => setPRs(await savePR({ exercise: pr.exercise, weight: kg })),
     [user.id]
   );
 
@@ -159,7 +159,7 @@ export default function PRScreen() {
         {
           text: 'Remove',
           style: 'destructive',
-          onPress: async () => setPRs(await deletePR(user.id, pr.id)),
+          onPress: async () => setPRs(await deletePR(pr.id)),
         },
       ]);
     },
@@ -174,7 +174,7 @@ export default function PRScreen() {
     >
       <FlatList
         data={prs}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => String(item.id)}
         contentContainerStyle={[styles.list, { paddingBottom: tabBarInset }]}
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={

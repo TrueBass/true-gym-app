@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { setOnSessionExpired } from './api';
 import * as storage from './storage';
 
 const AuthContext = createContext(null);
@@ -6,6 +7,10 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // The API layer calls this when a refresh fails, which can happen mid-request
+  // on any screen — the session is gone, so the app must reflect that.
+  useEffect(() => setOnSessionExpired(() => setUser(null)), []);
 
   useEffect(() => {
     // Clears records left by an older, incompatible shape before the first read.
@@ -24,23 +29,23 @@ export function AuthProvider({ children }) {
   }, []);
 
   const changeEmail = useCallback(
-    async (form) => setUser(await storage.changeEmail(user.id, form)),
+    async (form) => setUser(await storage.changeEmail(form)),
     [user]
   );
 
   const changeUsername = useCallback(
-    async (form) => setUser(await storage.changeUsername(user.id, form)),
+    async (form) => setUser(await storage.changeUsername(form)),
     [user]
   );
 
   const changePassword = useCallback(
-    (form) => storage.changePassword(user.id, form),
+    (form) => storage.changePassword(form),
     [user]
   );
 
   const deleteAccount = useCallback(
     async (password) => {
-      await storage.deleteAccount(user.id, password);
+      await storage.deleteAccount(password);
       setUser(null);
     },
     [user]

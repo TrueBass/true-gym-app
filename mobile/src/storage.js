@@ -1,23 +1,28 @@
+/**
+ * The app's data layer. Accounts, personal records and body weight now live on
+ * the API; the theme and everything PingUIn does are still on the device.
+ *
+ * Pings stayed local because the API has no endpoints for them. They work only
+ * between accounts that have signed in on this device — the same limitation as
+ * before, with a local directory (`@gym/known-users`) standing in for the
+ * accounts table that moved to the server.
+ */
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Crypto from 'expo-crypto';
+import { clearTokens, getRefreshToken, hasSession, loadTokens, request, saveTokens } from './api';
 
-const USERS_KEY = '@gym/users';
-const SESSION_KEY = '@gym/session';
 const THEME_KEY = '@gym/theme';
 const SCHEMA_KEY = '@gym/schema';
-
-/**
- * Bumped whenever stored records change shape. On a mismatch every `@gym/*` key
- * is dropped rather than migrated — this is a local-only app with no data worth
- * preserving across a breaking change, and a stale record is worse than none.
- * The theme survives, being a device preference rather than data.
- */
-const SCHEMA_VERSION = '3';
-const prsKey = (userId) => `@gym/prs/${userId}`;
-const weightsKey = (userId) => `@gym/weights/${userId}`;
+const KNOWN_USERS_KEY = '@gym/known-users';
 const friendsKey = (userId) => `@gym/friends/${userId}`;
 const pingsKey = (userId) => `@gym/pings/${userId}`;
 const inboxKey = (userId) => `@gym/inbox/${userId}`;
+
+/**
+ * Bumped whenever stored records change shape. Version 4 drops the local
+ * accounts, records and weights the API now owns; the theme survives, being a
+ * device preference rather than data.
+ */
+const SCHEMA_VERSION = '4';
 
 async function readJSON(key, fallback) {
   const raw = await AsyncStorage.getItem(key);
@@ -33,33 +38,15 @@ const writeJSON = (key, value) => AsyncStorage.setItem(key, JSON.stringify(value
 
 export const newId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
-const normalizeEmail = (email) => email.trim().toLowerCase();
-
-/**
- * The username is the handle friends ping, so it has to be unique. Displayed as
- * typed, compared case-insensitively, and tolerant of a leading @.
- */
 const cleanUsername = (username) => String(username ?? '').trim().replace(/^@+/, '');
 const usernameKey = (username) => cleanUsername(username).toLowerCase();
-
-const USERNAME_RE = /^[a-zA-Z0-9._-]{3,20}$/;
-
-function assertUsername(username) {
-  const clean = cleanUsername(username);
-  if (!USERNAME_RE.test(clean)) {
-    throw new Error('Usernames are 3-20 characters: letters, numbers, dot, dash or underscore.');
-  }
-  return clean;
-}
-
-async function hashPassword(password, salt) {
-  return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, `${salt}:${password}`);
-}
 
 /* ---------------------------------- setup --------------------------------- */
 
 /** Runs once before anything reads storage. Safe to call repeatedly. */
 export async function initStorage() {
+  await loadTokens();
+
   const stored = await AsyncStorage.getItem(SCHEMA_KEY);
   if (stored === SCHEMA_VERSION) return false;
 
@@ -73,58 +60,82 @@ export async function initStorage() {
 
 /* ---------------------------------- auth ---------------------------------- */
 
+/** Local directory of accounts seen on this device — all PingUIn has to go on. */
+async function rememberUser(user) {
+  const known = await readJSON(KNOWN_USERS_KEY, []);
+  await writeJSON(KNOWN_USERS_KEY, [user, ...known.filter((u) => u.id !== user.id)]);
+  return user;
+}
+
 export async function signUp({ username, email, password }) {
-  const users = await readJSON(USERS_KEY, []);
-  const cleanEmail = normalizeEmail(email);
-  const cleanedUsername = assertUsername(username);
-
-  if (users.some((u) => u.email === cleanEmail)) {
-    throw new Error('An account with that email already exists.');
-  }
-  if (users.some((u) => usernameKey(u.username) === usernameKey(cleanedUsername))) {
-    throw new Error('That username is taken.');
-  }
-
-  const salt = newId();
-  const user = {
-    id: newId(),
-    username: cleanedUsername,
-    email: cleanEmail,
-    salt,
-    hash: await hashPassword(password, salt),
-  };
-
-  await writeJSON(USERS_KEY, [...users, user]);
-  await AsyncStorage.setItem(SESSION_KEY, user.id);
-  return publicUser(user);
+  const { user, tokens } = await request('/auth/signup', {
+    method: 'POST',
+    auth: false,
+    body: { username, email, password },
+  });
+  await saveTokens(tokens);
+  return rememberUser(user);
 }
 
 export async function logIn({ email, password }) {
-  const users = await readJSON(USERS_KEY, []);
-  const user = users.find((u) => u.email === normalizeEmail(email));
-
-  // Same message either way so the form can't be used to probe for accounts.
-  const invalid = new Error('Incorrect email or password.');
-  if (!user) throw invalid;
-  if ((await hashPassword(password, user.salt)) !== user.hash) throw invalid;
-
-  await AsyncStorage.setItem(SESSION_KEY, user.id);
-  return publicUser(user);
+  const { user, tokens } = await request('/auth/login', {
+    method: 'POST',
+    auth: false,
+    body: { email, password },
+  });
+  await saveTokens(tokens);
+  return rememberUser(user);
 }
 
 export async function logOut() {
-  await AsyncStorage.removeItem(SESSION_KEY);
+  const refreshToken = getRefreshToken();
+  if (refreshToken) {
+    // Best effort: the session is over locally whatever the server answers.
+    await request('/auth/logout', {
+      method: 'POST',
+      auth: false,
+      body: { refreshToken },
+    }).catch(() => {});
+  }
+  await clearTokens();
 }
 
 export async function getCurrentUser() {
-  const id = await AsyncStorage.getItem(SESSION_KEY);
-  if (!id) return null;
-  const users = await readJSON(USERS_KEY, []);
-  const user = users.find((u) => u.id === id);
-  return user ? publicUser(user) : null;
+  await loadTokens();
+  if (!hasSession()) return null;
+  try {
+    return await request('/auth/me');
+  } catch {
+    // An expired or rejected session means "logged out", not an error to show.
+    return null;
+  }
 }
 
-const publicUser = ({ id, username, email }) => ({ id, username, email });
+/* --------------------------------- account -------------------------------- */
+
+export const changeEmail = ({ newEmail, currentPassword }) =>
+  request('/account/email', { method: 'PATCH', body: { newEmail, currentPassword } }).then(
+    rememberUser
+  );
+
+export const changeUsername = ({ username, currentPassword }) =>
+  request('/account/username', { method: 'PATCH', body: { username, currentPassword } }).then(
+    rememberUser
+  );
+
+export async function changePassword({ currentPassword, newPassword }) {
+  // Changing it ends every other session, so this answers with a fresh pair.
+  const { tokens } = await request('/account/password', {
+    method: 'PATCH',
+    body: { currentPassword, newPassword },
+  });
+  await saveTokens(tokens);
+}
+
+export async function deleteAccount(password) {
+  await request('/account', { method: 'DELETE', body: { password } });
+  await clearTokens();
+}
 
 /* ---------------------------------- theme --------------------------------- */
 
@@ -132,124 +143,46 @@ const publicUser = ({ id, username, email }) => ({ id, username, email });
 export const getThemePreference = () => AsyncStorage.getItem(THEME_KEY);
 export const setThemePreference = (key) => AsyncStorage.setItem(THEME_KEY, key);
 
-/* --------------------------------- account -------------------------------- */
-
-/** Loads the stored user record and verifies `password` before any change to it. */
-async function authorize(userId, password) {
-  const users = await readJSON(USERS_KEY, []);
-  const user = users.find((u) => u.id === userId);
-  if (!user) throw new Error('Account not found.');
-  if ((await hashPassword(password, user.salt)) !== user.hash) {
-    throw new Error('Current password is incorrect.');
-  }
-  return { users, user };
-}
-
-export async function changeEmail(userId, { newEmail, currentPassword }) {
-  const { users, user } = await authorize(userId, currentPassword);
-  const cleanEmail = normalizeEmail(newEmail);
-
-  if (cleanEmail === user.email) throw new Error('That is already your email.');
-  if (users.some((u) => u.id !== userId && u.email === cleanEmail)) {
-    throw new Error('An account with that email already exists.');
-  }
-
-  const updated = { ...user, email: cleanEmail };
-  await writeJSON(USERS_KEY, users.map((u) => (u.id === userId ? updated : u)));
-  return publicUser(updated);
-}
-
-export async function changeUsername(userId, { username, currentPassword }) {
-  const { users, user } = await authorize(userId, currentPassword);
-  const cleanedUsername = assertUsername(username);
-
-  if (users.some((u) => u.id !== userId && usernameKey(u.username) === usernameKey(cleanedUsername))) {
-    throw new Error('That username is taken.');
-  }
-
-  const updated = { ...user, username: cleanedUsername };
-  await writeJSON(USERS_KEY, users.map((u) => (u.id === userId ? updated : u)));
-  return publicUser(updated);
-}
-
-export async function changePassword(userId, { currentPassword, newPassword }) {
-  const { users, user } = await authorize(userId, currentPassword);
-
-  // New salt per change, so the stored hash never repeats even for a reused password.
-  const salt = newId();
-  const updated = { ...user, salt, hash: await hashPassword(newPassword, salt) };
-  await writeJSON(USERS_KEY, users.map((u) => (u.id === userId ? updated : u)));
-}
-
-/** Removes the account plus everything it owns, then ends the session. */
-export async function deleteAccount(userId, password) {
-  const { users } = await authorize(userId, password);
-
-  await writeJSON(USERS_KEY, users.filter((u) => u.id !== userId));
-  await AsyncStorage.multiRemove([
-    prsKey(userId),
-    weightsKey(userId),
-    friendsKey(userId),
-    pingsKey(userId),
-    inboxKey(userId),
-    SESSION_KEY,
-  ]);
-}
-
 /* ----------------------------------- PRs ---------------------------------- */
 
-export const getPRs = (userId) => readJSON(prsKey(userId), []);
+export const getPRs = () => request('/prs');
 
-export async function savePR(userId, { exercise, weight }) {
-  const prs = await getPRs(userId);
-  const clean = exercise.trim();
-  const existing = prs.find((pr) => pr.exercise.toLowerCase() === clean.toLowerCase());
-
-  const next = existing
-    ? prs.map((pr) =>
-        pr.id === existing.id ? { ...pr, exercise: clean, weight, updatedAt: Date.now() } : pr
-      )
-    : [{ id: newId(), exercise: clean, weight, updatedAt: Date.now() }, ...prs];
-
-  await writeJSON(prsKey(userId), next);
-  return next;
+/** POST is idempotent by exercise name, so this both creates and updates. */
+export async function savePR({ exercise, weight }) {
+  await request('/prs', { method: 'POST', body: { exercise, weight } });
+  return getPRs();
 }
 
-export async function deletePR(userId, prId) {
-  const next = (await getPRs(userId)).filter((pr) => pr.id !== prId);
-  await writeJSON(prsKey(userId), next);
-  return next;
+export async function deletePR(recordId) {
+  await request(`/prs/${recordId}`, { method: 'DELETE' });
+  return getPRs();
 }
 
 /* --------------------------------- weight --------------------------------- */
 
-export const getWeights = (userId) => readJSON(weightsKey(userId), []);
+/** The screen reads `date` as a timestamp; the wire calls it `recordedAt`. */
+const toEntry = ({ id, kg, recordedAt }) => ({ id, kg, date: Date.parse(recordedAt) });
 
-/** Entries are kept newest-first so screens can read index 0 as "latest". */
-export async function addWeight(userId, kg) {
-  const entries = await getWeights(userId);
-  const next = [{ id: newId(), kg, date: Date.now() }, ...entries].sort((a, b) => b.date - a.date);
-  await writeJSON(weightsKey(userId), next);
-  return next;
+export async function getWeights() {
+  const entries = await request('/weights');
+  return entries.map(toEntry);
 }
 
-export async function deleteWeight(userId, entryId) {
-  const next = (await getWeights(userId)).filter((e) => e.id !== entryId);
-  await writeJSON(weightsKey(userId), next);
-  return next;
+export async function addWeight(kg) {
+  await request('/weights', { method: 'POST', body: { kg } });
+  return getWeights();
+}
+
+export async function deleteWeight(entryId) {
+  await request(`/weights/${entryId}`, { method: 'DELETE' });
+  return getWeights();
 }
 
 /* ---------------------------------- pings --------------------------------- */
 
-/**
- * Pings are internal: a username must belong to a real account or the ping
- * cannot be sent. Since there is no server, "real account" means an account on
- * this device — delivery writes straight into the recipient's inbox.
- */
 export async function findUserByUsername(username) {
-  const users = await readJSON(USERS_KEY, []);
-  const match = users.find((u) => usernameKey(u.username) === usernameKey(username));
-  return match ? publicUser(match) : null;
+  const known = await readJSON(KNOWN_USERS_KEY, []);
+  return known.find((u) => usernameKey(u.username) === usernameKey(username)) ?? null;
 }
 
 /** People this user has pinged before, most recent first. */
@@ -267,10 +200,10 @@ export async function sendPing(userId, { username, at }) {
   if (!Number.isFinite(at)) throw new Error('Pick a date and time.');
 
   const recipient = await findUserByUsername(target);
-  if (!recipient) throw new Error(`No user called @${target}.`);
+  if (!recipient) throw new Error(`No user called @${target} on this device.`);
   if (recipient.id === userId) throw new Error("You can't ping yourself.");
 
-  const sender = (await readJSON(USERS_KEY, [])).find((u) => u.id === userId);
+  const sender = (await readJSON(KNOWN_USERS_KEY, [])).find((u) => u.id === userId);
   if (!sender) throw new Error('Account not found.');
 
   const [friends, sent, inbox] = await Promise.all([
@@ -314,12 +247,11 @@ export async function sendPing(userId, { username, at }) {
   };
 
   const nextSent = [ping, ...sent];
-  const nextInbox = [received, ...inbox];
 
   await Promise.all([
     writeJSON(friendsKey(userId), nextFriends),
     writeJSON(pingsKey(userId), nextSent),
-    writeJSON(inboxKey(recipient.id), nextInbox),
+    writeJSON(inboxKey(recipient.id), [received, ...inbox]),
   ]);
 
   return { ping, friends: nextFriends, pings: nextSent, recipient };
@@ -335,8 +267,7 @@ export const PING_RESPONSES = ['accepted', 'declined'];
 
 /**
  * Answers a ping in this user's inbox and mirrors the answer onto the sender's
- * copy, so they can see it in their Sent list. Pings written before responses
- * existed have no `pingId` to match on — those update the inbox side only.
+ * copy, so they can see it in their Sent list.
  */
 export async function respondToPing(userId, inboxId, status) {
   if (!PING_RESPONSES.includes(status)) throw new Error('Unknown response.');
