@@ -16,6 +16,7 @@ import { Button, Card } from '../components/ui';
 import { fonts, radius, spacing, themeList } from '../theme';
 import ChangeEmailScreen from './ChangeEmailScreen';
 import ChangePasswordScreen from './ChangePasswordScreen';
+import EditProfileScreen from './EditProfileScreen';
 import DeleteAccountScreen from './DeleteAccountScreen';
 
 /** Compact tappable row: what it is, its current value, and a disclosure arrow. */
@@ -116,6 +117,15 @@ export default function AccountScreen() {
     return () => clearTimeout(t);
   }, [flash]);
 
+  // Either value can be missing, so the row says what is actually known.
+  const profileSummary =
+    [
+      user.heightCm == null ? null : `${user.heightCm} cm`,
+      user.goalWeightKg == null ? null : `goal ${user.goalWeightKg} kg`,
+    ]
+      .filter(Boolean)
+      .join(' · ') || 'Not set';
+
   const close = () => setSheet(null);
   const done = (message) => {
     setSheet(null);
@@ -150,6 +160,12 @@ export default function AccountScreen() {
 
         <Card style={[styles.section, styles.rows]}>
           <SettingRow
+            icon="body-outline"
+            label="Height & goal"
+            value={profileSummary}
+            onPress={() => setSheet('profile')}
+          />
+          <SettingRow
             icon="mail-outline"
             label="Email"
             value={user.email}
@@ -180,6 +196,7 @@ export default function AccountScreen() {
         </Card>
       </ScrollView>
 
+      {sheet === 'profile' && <EditProfileScreen onClose={close} onDone={done} />}
       {sheet === 'email' && <ChangeEmailScreen onClose={close} onDone={done} />}
       {sheet === 'password' && <ChangePasswordScreen onClose={close} onDone={done} />}
       {sheet === 'delete' && <DeleteAccountScreen onClose={close} />}

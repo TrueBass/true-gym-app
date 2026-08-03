@@ -38,6 +38,11 @@ export function AuthProvider({ children }) {
     [user]
   );
 
+  const updateProfile = useCallback(
+    async (changes) => setUser(await storage.updateProfile(changes)),
+    []
+  );
+
   const changePassword = useCallback(
     (form) => storage.changePassword(form),
     [user]
@@ -52,8 +57,8 @@ export function AuthProvider({ children }) {
   );
 
   const value = useMemo(
-    () => ({ user, loading, signUp, logIn, logOut, changeEmail, changeUsername, changePassword, deleteAccount }),
-    [user, loading, signUp, logIn, logOut, changeEmail, changeUsername, changePassword, deleteAccount]
+    () => ({ user, loading, signUp, logIn, logOut, changeEmail, changeUsername, updateProfile, changePassword, deleteAccount }),
+    [user, loading, signUp, logIn, logOut, changeEmail, changeUsername, updateProfile, changePassword, deleteAccount]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

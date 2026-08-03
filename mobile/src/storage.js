@@ -132,6 +132,19 @@ export async function changePassword({ currentPassword, newPassword }) {
   await saveTokens(tokens);
 }
 
+/** Height and goal weight. Send only what changed — an omitted field is left alone. */
+export const updateProfile = (changes) =>
+  request('/account/profile', { method: 'PATCH', body: changes }).then(rememberUser);
+
+/**
+ * Whether the signup questions have been dealt with. Kept on the device rather
+ * than the account because skipping is a decision about this phone's flow, not
+ * a fact about the user — the server only knows whether the values are set.
+ */
+const onboardedKey = (userId) => `@gym/onboarded/${userId}`;
+export const isOnboarded = async (userId) => (await AsyncStorage.getItem(onboardedKey(userId))) === '1';
+export const setOnboarded = (userId) => AsyncStorage.setItem(onboardedKey(userId), '1');
+
 export async function deleteAccount(password) {
   await request('/account', { method: 'DELETE', body: { password } });
   await clearTokens();
