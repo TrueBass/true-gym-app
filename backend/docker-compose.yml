@@ -1,21 +1,51 @@
 services:
+  db:
+    image: postgres:16
+    # Credentials come from .env, which compose reads for interpolation — the
+    # same file DATABASE_URL lives in, so the two can't drift apart, and no
+    # password is committed. The :? form fails the run with this message rather
+    # than silently initialising the volume under a different role.
+    environment:
+      POSTGRES_USER: ${PGUSER:?set PGUSER in backend/.env to the user in DATABASE_URL}
+      POSTGRES_PASSWORD: ${PGPASSWORD:?set PGPASSWORD in backend/.env to the password in DATABASE_URL}
+      POSTGRES_DB: ${PGDATABASE:-true_gym}
+    # NOTE: those three are read only when the volume is first initialised.
+    # Changing them later does nothing to a volume that already has a cluster
+    # in it — that takes an ALTER ROLE, or deleting the volume.
+    volumes:
+      - true_gym_data:/var/lib/postgresql/data
+    # Published on the host so one DATABASE_URL works everywhere: the API
+    # container reaches it through localhost (host networking, below) and so
+    # does a plain `uvicorn` run from the venv. Nothing else may hold 5432 —
+    # stop the system cluster first.
+    ports:
+      - "5432:5432"
+    healthcheck:
+      # -h forces TCP. Without it pg_isready asks the Unix socket, which the
+      # temporary server used while initialising a fresh volume already answers
+      # — so the check passes, the API is let through, and it is refused on
+      # 5432 because nothing is listening there yet. TCP is what the API
+      # actually uses, so TCP is what health has to mean.
+      test:
+        ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${PGUSER} -d ${PGDATABASE:-true_gym}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      # First run has to create the cluster before any of that can succeed.
+      start_period: 30s
+    restart: unless-stopped
+
   api:
     build: .
     env_file: .env
-    # Postgres is still on the host, not in Docker. Host networking lets the
-    # container reach it at the same localhost:5432 that .env already names —
-    # no listen_addresses or pg_hba.conf edits, and the file works unchanged
-    # whether the API runs in a container or straight from the venv.
-    #
-    # It also means uvicorn binds the host's interfaces directly, so a phone on
-    # the same network can reach the API at http://<this machine>:8000 — which
-    # is what Expo Go needs.
-    #
-    # When the database moves into Docker: drop network_mode, add
-    #   ports: ["8000:8000"]
-    # a db service, and point DATABASE_URL at that service's name instead of
-    # localhost. Nothing in the image changes.
+    # Host networking, so the container resolves the same localhost:5432 that
+    # .env names — no second URL for running the API outside Docker. It also
+    # puts uvicorn on the host's interfaces, which is what a phone running
+    # Expo Go needs to reach the API over the network.
     network_mode: host
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       # curl isn't in the slim image, and Python is right there.
@@ -28,3 +58,10 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+volumes:
+  true_gym_data:
+    # Named explicitly, so it is true_gym_data and not backend_true_gym_data:
+    # compose prefixes the project (the directory) otherwise, and renaming or
+    # moving the folder would leave the database behind in an orphaned volume.
+    name: true_gym_data
