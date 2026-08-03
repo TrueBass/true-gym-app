@@ -23,9 +23,11 @@ MAX_PASSWORD_LENGTH = 128
 # weight_kg is NUMERIC(6, 2).
 MAX_EXERCISE_LENGTH = 100
 MAX_LIFT_KG = 9999.99
+# weights.weight_kg is NUMERIC(5, 2) — a body weight, not a barbell.
+MAX_BODY_WEIGHT_KG = 999.99
 
 if TYPE_CHECKING:
-    from app.models import PersonalRecord
+    from app.models import PersonalRecord, Weight
 
 
 class ApiModel(BaseModel):
@@ -153,3 +155,59 @@ class PersonalRecordOut(ApiModel):
             weight=float(record.weight_kg),
             updated_at=record.updated_at,
         )
+
+
+def _check_body_weight(value: float) -> float:
+    if value <= 0:
+        raise ValueError("Enter a weight greater than 0.")
+    if value > MAX_BODY_WEIGHT_KG:
+        raise ValueError("That weight looks too large.")
+    return value
+
+
+BodyWeight = Annotated[float, AfterValidator(_check_body_weight)]
+
+
+class WeightIn(ApiModel):
+    kg: BodyWeight
+
+
+class WeightOut(ApiModel):
+    id: int
+    kg: float
+    recorded_at: datetime
+
+    @classmethod
+    def of(cls, entry: "Weight") -> "WeightOut":
+        return cls(id=entry.id, kg=float(entry.weight_kg), recorded_at=entry.recorded_at)
+
+
+class WeightStats(ApiModel):
+    """What the weight screen shows above the history list.
+
+    Computed here rather than on the device: the deltas the app derives today
+    need every entry loaded to find the oldest, and the averages don't exist in
+    the app at all — they come from the bot, where they read better than a bare
+    latest number does.
+    """
+
+    latest: WeightOut | None
+    entry_count: int
+    # Latest minus the entry before it, and minus the very first — the two
+    # deltas the screen already puts under the sparkline.
+    since_last: float | None
+    since_start: float | None
+    # Rolling averages, each with the number of entries behind it so the client
+    # can tell "steady at 80" from "one weigh-in this month". Spelled out rather
+    # than as average_7d, which camel-cases into the unreadable average7D.
+    seven_day_average: float | None
+    seven_day_entries: int
+    thirty_day_average: float | None
+    thirty_day_entries: int
+    # The 7-day average against the 30-day one: which way the recent weeks are
+    # going, a question single readings are too noisy to answer. Null until the
+    # month holds something the week doesn't — before that the two averages
+    # cover the same readings and their difference is zero by construction, not
+    # because the weight is steady.
+    trend: str | None
+    trend_delta: float | None
