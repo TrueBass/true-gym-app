@@ -1,4 +1,5 @@
 import IconCanary from '@tabler/icons-react-native/IconCanary';
+import IconX from '@tabler/icons-react-native/IconX';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
@@ -310,7 +311,7 @@ export default function PingScreen() {
                         style={styles.dismiss}
                         accessibilityLabel="Dismiss"
                       >
-                        <Ionicons name="close" size={16} color={colors.muted} />
+                        <IconX size={16} color={colors.muted} />
                       </Pressable>
                     </Card>
                   );

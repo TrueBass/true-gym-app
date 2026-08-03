@@ -1,3 +1,4 @@
+import IconX from '@tabler/icons-react-native/IconX';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
@@ -189,7 +190,7 @@ export default function WeightScreen() {
               )}
 
               <Pressable onPress={() => confirmRemove(item)} hitSlop={8} style={styles.remove}>
-                <Text style={styles.removeText}>✕</Text>
+                <IconX size={16} color={colors.muted} />
               </Pressable>
             </Card>
           );
@@ -352,10 +353,5 @@ const makeStyles = (colors) =>
     backgroundColor: colors.cardAlt,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  removeText: {
-    fontFamily: fonts.bold,
-    color: colors.muted,
-    fontSize: 14,
   },
 });
