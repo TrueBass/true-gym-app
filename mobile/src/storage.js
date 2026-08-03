@@ -292,13 +292,25 @@ export async function sendPing(userId, { username, at }) {
   ];
 
   const sentAt = Date.now();
-  const ping = { id: newId(), toUserId: recipient.id, username: recipient.username, at, sentAt };
+  // Both copies carry the same pingId so a response can be mirrored back.
+  const pingId = newId();
+  const ping = {
+    id: newId(),
+    pingId,
+    toUserId: recipient.id,
+    username: recipient.username,
+    at,
+    sentAt,
+    status: 'pending',
+  };
   const received = {
     id: newId(),
+    pingId,
     fromUserId: userId,
     fromUsername: sender.username,
     at,
     sentAt,
+    status: 'pending',
   };
 
   const nextSent = [ping, ...sent];
@@ -319,10 +331,38 @@ export async function deletePing(userId, pingId) {
   return next;
 }
 
-export async function dismissInboxPing(userId, pingId) {
-  const next = (await getInbox(userId)).filter((p) => p.id !== pingId);
-  await writeJSON(inboxKey(userId), next);
-  return next;
+export const PING_RESPONSES = ['accepted', 'declined'];
+
+/**
+ * Answers a ping in this user's inbox and mirrors the answer onto the sender's
+ * copy, so they can see it in their Sent list. Pings written before responses
+ * existed have no `pingId` to match on — those update the inbox side only.
+ */
+export async function respondToPing(userId, inboxId, status) {
+  if (!PING_RESPONSES.includes(status)) throw new Error('Unknown response.');
+
+  const inbox = await getInbox(userId);
+  const entry = inbox.find((p) => p.id === inboxId);
+  if (!entry) throw new Error('Ping not found.');
+
+  const respondedAt = Date.now();
+  const nextInbox = inbox.map((p) => (p.id === inboxId ? { ...p, status, respondedAt } : p));
+  const writes = [writeJSON(inboxKey(userId), nextInbox)];
+
+  if (entry.pingId) {
+    const sent = await getPings(entry.fromUserId);
+    if (sent.some((p) => p.pingId === entry.pingId)) {
+      writes.push(
+        writeJSON(
+          pingsKey(entry.fromUserId),
+          sent.map((p) => (p.pingId === entry.pingId ? { ...p, status, respondedAt } : p))
+        )
+      );
+    }
+  }
+
+  await Promise.all(writes);
+  return nextInbox;
 }
 
 export async function removeFriend(userId, friendId) {

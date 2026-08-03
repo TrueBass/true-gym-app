@@ -1,5 +1,6 @@
 import IconCanary from '@tabler/icons-react-native/IconCanary';
-import IconX from '@tabler/icons-react-native/IconX';
+import IconThumbDown from '@tabler/icons-react-native/IconThumbDown';
+import IconThumbUp from '@tabler/icons-react-native/IconThumbUp';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
@@ -22,7 +23,7 @@ import { useAuth } from '../AuthContext';
 import { useTheme, useThemedStyles } from '../ThemeContext';
 import { useTabBarInset } from '../components/FloatingTabBar';
 import { Button, Card, Empty, Field } from '../components/ui';
-import { dismissInboxPing, getFriends, getInbox, getPings, removeFriend, sendPing } from '../storage';
+import { getFriends, getInbox, getPings, removeFriend, respondToPing, sendPing } from '../storage';
 import { fonts, radius, spacing } from '../theme';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -188,6 +189,11 @@ export default function PingScreen() {
     }
   }, [user.id, target, when]);
 
+  const answer = useCallback(
+    async (ping, status) => setInbox(await respondToPing(user.id, ping.id, status)),
+    [user.id]
+  );
+
   const confirmRemoveFriend = useCallback(
     (friend) => {
       Alert.alert('Remove friend', `Remove @${friend.username} from your list?`, [
@@ -305,14 +311,42 @@ export default function PingScreen() {
                           invited you · {formatDay(at)} · {formatTime(at)}
                         </Text>
                       </View>
-                      <Pressable
-                        onPress={async () => setInbox(await dismissInboxPing(user.id, item.id))}
-                        hitSlop={10}
-                        style={styles.dismiss}
-                        accessibilityLabel="Dismiss"
-                      >
-                        <IconX size={16} color={colors.muted} />
-                      </Pressable>
+                      {(item.status ?? 'pending') === 'pending' ? (
+                        <View style={styles.answer}>
+                          <Pressable
+                            onPress={() => answer(item, 'accepted')}
+                            hitSlop={8}
+                            style={({ pressed }) => [
+                              styles.answerButton,
+                              styles.answerAccept,
+                              pressed && styles.pressed,
+                            ]}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Accept ping from ${item.fromUsername}`}
+                          >
+                            <IconThumbUp size={17} color={colors.accentText} />
+                          </Pressable>
+
+                          <Pressable
+                            onPress={() => answer(item, 'declined')}
+                            hitSlop={8}
+                            style={({ pressed }) => [styles.answerButton, pressed && styles.pressed]}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Decline ping from ${item.fromUsername}`}
+                          >
+                            <IconThumbDown size={17} color={colors.muted} />
+                          </Pressable>
+                        </View>
+                      ) : (
+                        <Text
+                          style={[
+                            styles.rowState,
+                            item.status === 'declined' && styles.rowStatePast,
+                          ]}
+                        >
+                          {item.status}
+                        </Text>
+                      )}
                     </Card>
                   );
                 })}
@@ -338,8 +372,17 @@ export default function PingScreen() {
                   {formatDay(at)} · {formatTime(at)}
                 </Text>
               </View>
-              <Text style={[styles.rowState, past && styles.rowStatePast]}>
-                {past ? 'past' : 'upcoming'}
+              <Text
+                style={[
+                  styles.rowState,
+                  (item.status === 'declined' || (past && !item.status)) && styles.rowStatePast,
+                ]}
+              >
+                {item.status && item.status !== 'pending'
+                  ? item.status
+                  : past
+                    ? 'past'
+                    : 'upcoming'}
               </Text>
             </Card>
           );
@@ -520,14 +563,25 @@ const makeStyles = (colors) =>
       fontSize: 13,
       marginBottom: spacing.md,
     },
-    dismiss: {
-      width: 26,
-      height: 26,
+    answer: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+    },
+    answerButton: {
+      width: 34,
+      height: 34,
       borderRadius: radius.sm,
       borderWidth: 1,
       borderColor: colors.border,
       alignItems: 'center',
       justifyContent: 'center',
+    },
+    answerAccept: {
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
+    },
+    pressed: {
+      opacity: 0.6,
     },
     error: {
       fontFamily: fonts.medium,
