@@ -21,6 +21,17 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(20))
     email: Mapped[str] = mapped_column(String(255))
     password_hash: Mapped[str] = mapped_column(String(255))
+    # Body attributes rather than measurements: they change rarely and have one
+    # current value, so they belong to the account. A starting weight is not
+    # here — that is a reading, and it goes in `weights` with every other one,
+    # which is what lets the trend series start at signup.
+    #
+    # Both nullable: signup asks for them, but a screen can be skipped and
+    # accounts predating them have none.
+    height_cm: Mapped[Decimal | None] = mapped_column(Numeric(4, 1), nullable=True)
+    goal_weight_kg: Mapped[Decimal | None] = mapped_column(
+        Numeric(5, 2), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

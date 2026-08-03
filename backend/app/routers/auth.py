@@ -19,7 +19,13 @@ async def sign_up(body: SignUpRequest, session: SessionDep) -> AuthResponse:
     """Create an account and start a session — signing up logs you in, which is
     what the app's single form already assumes."""
     user = await auth.sign_up(
-        session, username=body.username, email=body.email, password=body.password
+        session,
+        username=body.username,
+        email=body.email,
+        password=body.password,
+        height_cm=body.height_cm,
+        goal_weight_kg=body.goal_weight_kg,
+        weight_kg=body.weight_kg,
     )
     return AuthResponse(user=UserOut.model_validate(user), tokens=await auth.issue_session(session, user))
 

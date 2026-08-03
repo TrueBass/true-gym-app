@@ -7,6 +7,7 @@ from app.schemas import (
     ChangePasswordRequest,
     ChangeUsernameRequest,
     DeleteAccountRequest,
+    ProfileRequest,
     UserOut,
 )
 from app.services import account
@@ -35,6 +36,19 @@ async def change_username(
     updated = await account.change_username(
         session, user, username=body.username, current_password=body.current_password
     )
+    return UserOut.model_validate(updated)
+
+
+@router.patch("/profile", response_model=UserOut)
+async def update_profile(
+    body: ProfileRequest, user: CurrentUser, session: SessionDep
+) -> UserOut:
+    """Height and goal weight. Send only the field you're changing — an omitted
+    one keeps its value, and an explicit null clears it.
+
+    No current password here, unlike the routes above: these aren't credentials.
+    """
+    updated = await account.update_profile(session, user, body)
     return UserOut.model_validate(updated)
 
 

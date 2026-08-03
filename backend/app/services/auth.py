@@ -15,8 +15,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import security
 from app.errors import AuthError, ConflictError
-from app.models import RefreshToken, User
+from app.models import RefreshToken, User, Weight
 from app.schemas import TokenPair
+from app.services import to_decimal
 
 # One message for every way a login can fail, so the form can't be used to find
 # out which emails have accounts.
@@ -37,17 +38,40 @@ async def find_by_username(session: AsyncSession, username: str) -> User | None:
 
 
 async def sign_up(
-    session: AsyncSession, *, username: str, email: str, password: str
+    session: AsyncSession,
+    *,
+    username: str,
+    email: str,
+    password: str,
+    height_cm: float | None = None,
+    goal_weight_kg: float | None = None,
+    weight_kg: float | None = None,
 ) -> User:
+    """Create an account, optionally with what the signup screens collected.
+
+    The starting weight becomes the first row in the weight log rather than a
+    column here, so the user's history begins the day they signed up instead of
+    the first time they remember to log one.
+    """
     if await find_by_email(session, email):
         raise ConflictError("An account with that email already exists.")
     if await find_by_username(session, username):
         raise ConflictError("That username is taken.")
 
     user = User(
-        username=username, email=email, password_hash=security.hash_password(password)
+        username=username,
+        email=email,
+        password_hash=security.hash_password(password),
+        height_cm=to_decimal(height_cm),
+        goal_weight_kg=to_decimal(goal_weight_kg),
     )
     session.add(user)
+    if weight_kg is not None:
+        # Flushed first so the row has an id to hang the reading off, and both
+        # go in on one commit: an account is never created without the weight
+        # the user just entered.
+        await session.flush()
+        session.add(Weight(user_id=user.id, weight_kg=to_decimal(weight_kg)))
     try:
         await session.commit()
     except IntegrityError:

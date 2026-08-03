@@ -65,7 +65,7 @@ Everything except `/auth/*` and `/health` needs
 
 | Method | Path | Notes |
 | --- | --- | --- |
-| POST | `/auth/signup` | username, email, password → user + tokens |
+| POST | `/auth/signup` | username, email, password, and optionally height, weight and goal weight → user + tokens |
 | POST | `/auth/login` | email + password → user + tokens |
 | POST | `/auth/refresh` | trades a refresh token for a new pair |
 | POST | `/auth/logout` | ends the session that token belongs to |
@@ -77,6 +77,7 @@ Everything except `/auth/*` and `/health` needs
 | POST | `/weights` | append a reading |
 | GET | `/weights/stats` | latest, deltas, 7/30-day averages, trend |
 | DELETE | `/weights/{id}` | |
+| PATCH | `/account/profile` | height and goal weight; no password needed |
 | PATCH | `/account/email` | needs the current password |
 | PATCH | `/account/username` | needs the current password |
 | PATCH | `/account/password` | ends every other session, returns a new pair |
@@ -99,6 +100,14 @@ rotated on each use and stored only as a SHA-256. Rotation leaves the spent row
 revoked, and a revoked token coming back means one was spent twice — that ends
 every session for the account. Logging out and changing a password *delete*
 rows instead, so an ordinary retry is never mistaken for that.
+
+**Body metrics.** Height and goal weight live on the account — one current
+value each, changed rarely. A starting weight does not: it is a reading like any
+other, so signup writes it into the weight log, and the trend series begins the
+day the user joined. All three are optional, so a skipped signup screen still
+leaves a usable account, and `PATCH /account/profile` fills them in later. On
+that route an omitted field keeps its value while an explicit `null` clears it —
+otherwise a screen editing only the goal would wipe the height every save.
 
 **Layout.** `routers/` handle HTTP and nothing else. `services/` hold the domain
 logic and raise the errors in `errors.py`, which `main.py` maps to status codes.

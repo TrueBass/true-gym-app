@@ -1,8 +1,12 @@
-"""Changes to an account, each gated on the current password.
+"""Changes to an account.
 
-The app asks for it on every one of these screens, and the reason is that an
-access token is not proof of presence — it can be an unlocked phone left on a
-bench. The password is the thing only the owner knows.
+Anything touching identity or credentials — email, username, password, deleting
+the account — is gated on the current password, the way the app's own screens
+ask for it. An access token is not proof of presence; it can be an unlocked
+phone left on a bench, and the password is the part only the owner knows.
+
+Height and goal weight are not gated. They are numbers a user retypes when a
+goal moves, and nothing is lost by whoever holds the phone changing them.
 """
 
 from sqlalchemy.exc import IntegrityError
@@ -11,8 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import security
 from app.errors import ConflictError, ForbiddenError
 from app.models import User
-from app.schemas import TokenPair
-from app.services import auth
+from app.schemas import ProfileRequest, TokenPair
+from app.services import auth, to_decimal
 
 
 async def _authorize(session: AsyncSession, user: User, password: str) -> None:
@@ -63,6 +67,25 @@ async def _commit_handle_change(session: AsyncSession, taken_message: str) -> No
     except IntegrityError:
         await session.rollback()
         raise ConflictError(taken_message) from None
+
+
+async def update_profile(
+    session: AsyncSession, user: User, changes: ProfileRequest
+) -> User:
+    """Set height and goal weight, either or both.
+
+    A field left out of the request is left alone; a field sent as null is
+    cleared. Without that distinction the screen that edits only the goal would
+    wipe the height every time it saved.
+    """
+    sent = changes.model_fields_set
+    if "height_cm" in sent:
+        user.height_cm = to_decimal(changes.height_cm)
+    if "goal_weight_kg" in sent:
+        user.goal_weight_kg = to_decimal(changes.goal_weight_kg)
+
+    await session.commit()
+    return user
 
 
 async def change_password(

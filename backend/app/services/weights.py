@@ -2,7 +2,6 @@
 
 import uuid
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.errors import NotFoundError
 from app.models import Weight
 from app.schemas import WeightOut, WeightStats
+from app.services import to_decimal
 
 # Below this, a difference is the scale disagreeing with itself rather than the
 # body changing. Same threshold the app's trend badge uses.
@@ -32,7 +32,7 @@ async def list_entries(session: AsyncSession, user_id: uuid.UUID) -> list[Weight
 async def add_entry(session: AsyncSession, user_id: uuid.UUID, kg: float) -> Weight:
     """Append a reading. There is no update: every trend is read off the series,
     so an edited entry would quietly rewrite history."""
-    entry = Weight(user_id=user_id, weight_kg=Decimal(str(kg)))
+    entry = Weight(user_id=user_id, weight_kg=to_decimal(kg))
     session.add(entry)
     await session.commit()
     return entry

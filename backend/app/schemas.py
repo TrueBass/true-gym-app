@@ -25,6 +25,10 @@ MAX_EXERCISE_LENGTH = 100
 MAX_LIFT_KG = 9999.99
 # weights.weight_kg is NUMERIC(5, 2) — a body weight, not a barbell.
 MAX_BODY_WEIGHT_KG = 999.99
+# Wide enough for the shortest and tallest people on record, narrow enough to
+# catch a value typed in the wrong unit — 5.9 for feet, or 69 for inches.
+MIN_HEIGHT_CM = 50.0
+MAX_HEIGHT_CM = 300.0
 
 if TYPE_CHECKING:
     from app.models import PersonalRecord, Weight
@@ -70,10 +74,38 @@ Email = Annotated[str, AfterValidator(_clean_email)]
 Password = Annotated[str, AfterValidator(_check_password)]
 
 
+def _check_body_weight(value: float) -> float:
+    if value <= 0:
+        raise ValueError("Enter a weight greater than 0.")
+    if value > MAX_BODY_WEIGHT_KG:
+        raise ValueError("That weight looks too large.")
+    return value
+
+
+def _check_height(value: float) -> float:
+    if not MIN_HEIGHT_CM <= value <= MAX_HEIGHT_CM:
+        raise ValueError("Enter a height in centimetres, between 50 and 300.")
+    return value
+
+
+BodyWeight = Annotated[float, AfterValidator(_check_body_weight)]
+Height = Annotated[float, AfterValidator(_check_height)]
+# A goal is a body weight like any other; only what it means differs.
+GoalWeight = BodyWeight
+
+
 class SignUpRequest(ApiModel):
     username: Username
     email: Email
     password: Password
+    # The three signup screens after the credentials. Optional, so a client can
+    # send them in this one call or let the user skip and fill them in later —
+    # the account is valid either way.
+    height_cm: Height | None = None
+    goal_weight_kg: GoalWeight | None = None
+    # Stored as the first entry in the weight log, not on the account, so the
+    # user's history starts the day they signed up.
+    weight_kg: BodyWeight | None = None
 
 
 class LogInRequest(ApiModel):
@@ -92,6 +124,27 @@ class UserOut(ApiModel):
     id: uuid.UUID
     username: str
     email: str
+    # Null until the user gives them. The client decides what to do with that —
+    # prompt for the missing screen, or hide whatever it was going to derive.
+    height_cm: float | None = None
+    goal_weight_kg: float | None = None
+
+
+class ProfileRequest(ApiModel):
+    """Height and goal weight, changed together.
+
+    No current password, unlike the other account routes: these are numbers a
+    user retypes when a goal changes, not credentials, and asking for a password
+    to move a target would be friction with nothing behind it.
+
+    Both fields are optional and both accept null — that is how a goal gets
+    cleared. So "absent" and "explicitly null" mean different things here, and
+    the service reads `model_fields_set` to tell them apart rather than treating
+    a missing key as a request to erase.
+    """
+
+    height_cm: Height | None = None
+    goal_weight_kg: GoalWeight | None = None
 
 
 class TokenPair(ApiModel):
@@ -174,17 +227,6 @@ class PersonalRecordOut(ApiModel):
             weight=float(record.weight_kg),
             updated_at=record.updated_at,
         )
-
-
-def _check_body_weight(value: float) -> float:
-    if value <= 0:
-        raise ValueError("Enter a weight greater than 0.")
-    if value > MAX_BODY_WEIGHT_KG:
-        raise ValueError("That weight looks too large.")
-    return value
-
-
-BodyWeight = Annotated[float, AfterValidator(_check_body_weight)]
 
 
 class WeightIn(ApiModel):

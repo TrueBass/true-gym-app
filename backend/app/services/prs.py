@@ -1,7 +1,6 @@
 """Personal records — one per exercise, per user."""
 
 import uuid
-from decimal import Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -9,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import NotFoundError
 from app.models import PersonalRecord
+from app.services import to_decimal
 
 
 async def list_records(
@@ -47,7 +47,7 @@ async def save_record(
     has one Save button for both "new PR" and "I lifted more", and its inline
     edit sends a whole record rather than a patch.
     """
-    weight_kg = Decimal(str(weight))
+    weight_kg = to_decimal(weight)
     existing = await _find(session, user_id, exercise)
 
     if existing is None:
