@@ -8,7 +8,7 @@ from pydantic.warnings import UnsupportedFieldAttributeWarning
 
 from app.config import settings
 from app.errors import DomainError
-from app.routers import account, auth, prs, weights
+from app.routers import account, auth, pings, prs, weights
 
 # FastAPI clones each body field and re-attaches the field's alias onto the
 # annotated type behind it. Where that type is one of the shared aliases in
@@ -65,4 +65,5 @@ async def health() -> dict[str, str]:
 app.include_router(auth.router)
 app.include_router(prs.router)
 app.include_router(weights.router)
+app.include_router(pings.router)
 app.include_router(account.router)

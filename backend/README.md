@@ -77,6 +77,11 @@ Everything except `/auth/*` and `/health` needs
 | POST | `/weights` | append a reading |
 | GET | `/weights/stats` | latest, deltas, 7/30-day averages, trend |
 | DELETE | `/weights/{id}` | |
+| GET | `/pings/received` | invitations to this user |
+| GET | `/pings/sent` | invitations this user sent |
+| POST | `/pings` | invite a username to train at a time |
+| PATCH | `/pings/{id}` | accept or decline; recipient only |
+| DELETE | `/pings/{id}` | withdraw an invitation; sender only |
 | PATCH | `/account/profile` | height, goal weight and avatar; no password needed |
 | PATCH | `/account/email` | needs the current password |
 | PATCH | `/account/username` | needs the current password |
@@ -115,6 +120,15 @@ app, so redrawing an avatar never touches the database, and a key the client
 doesn't know would render as nothing — which is why the column refuses one.
 Adding a tenth is `ALTER TYPE avatar_key ADD VALUE` in a migration, and the two
 lists have to be changed together.
+
+**Pings** are one row, not one per side: the sender reads it as sent and the
+recipient as received, and `user` in the response is always the other person, so
+the same row renders as "to @sam" in one tab and "from @alex" in the other. The
+time is truncated to the minute, and `unique (from_user_id, to_user_id, at)`
+stops the same invitation being sent twice — as a constraint rather than a
+check, since a check-then-insert races exactly when someone holds the button
+down. Only the recipient can answer, only the sender can withdraw, and a ping
+that isn't yours reports 404 rather than 403.
 
 **Layout.** `routers/` handle HTTP and nothing else. `services/` hold the domain
 logic and raise the errors in `errors.py`, which `main.py` maps to status codes.

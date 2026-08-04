@@ -7,11 +7,13 @@ JavaScript — `accessToken`, not `access_token`. Requests accept either spellin
 import re
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Literal
 
 from email_validator import EmailNotValidError, validate_email
 from pydantic import AfterValidator, BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
+
+from app.models import AvatarKey, PingStatus
 
 # Same rule the app enforces on its own signup form.
 USERNAME_PATTERN = re.compile(r"^[a-zA-Z0-9._-]{3,20}$")
@@ -30,10 +32,8 @@ MAX_BODY_WEIGHT_KG = 999.99
 MIN_HEIGHT_CM = 50.0
 MAX_HEIGHT_CM = 300.0
 
-from app.models import AvatarKey
-
 if TYPE_CHECKING:
-    from app.models import PersonalRecord, Weight
+    from app.models import Ping, PersonalRecord, Weight
 
 
 class ApiModel(BaseModel):
@@ -231,6 +231,54 @@ class PersonalRecordOut(ApiModel):
             exercise=record.exercise,
             weight=float(record.weight_kg),
             updated_at=record.updated_at,
+        )
+
+
+class PingUser(ApiModel):
+    """The other person on a ping — never the one asking.
+
+    Enough to draw a row and no more: an invitation is not a reason to hand out
+    somebody's email or what they weigh.
+    """
+
+    id: uuid.UUID
+    username: str
+    avatar: AvatarKey | None = None
+
+
+class PingCreate(ApiModel):
+    # By username, because that is what the sender typed. Unique folded, so it
+    # identifies exactly one account.
+    username: Username
+    at: datetime
+
+
+class PingRespond(ApiModel):
+    # Not PingStatus: "pending" is where a ping starts, not an answer anyone can
+    # give it, and this type is what makes that unsayable.
+    status: Literal["accepted", "declined"]
+
+
+class PingOut(ApiModel):
+    id: int
+    user: PingUser
+    at: datetime
+    status: PingStatus
+    sent_at: datetime
+    responded_at: datetime | None
+
+    @classmethod
+    def of(cls, ping: "Ping", *, viewer_id: uuid.UUID) -> "PingOut":
+        """`user` is whoever the viewer isn't — the same row reads as "to Alex"
+        in the sent tab and "from Sam" in the received one."""
+        other = ping.to_user if ping.from_user_id == viewer_id else ping.from_user
+        return cls(
+            id=ping.id,
+            user=PingUser.model_validate(other),
+            at=ping.at,
+            status=ping.status,
+            sent_at=ping.created_at,
+            responded_at=ping.responded_at,
         )
 
 

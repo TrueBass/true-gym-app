@@ -5,7 +5,17 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Index, Numeric, String, Uuid, func
+from sqlalchemy import (
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Numeric,
+    String,
+    UniqueConstraint,
+    Uuid,
+    func,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -35,6 +45,19 @@ class AvatarKey(enum.StrEnum):
     ADVANCED = "advanced"
     BATMAN = "batman"
     UNIT = "unit"
+
+
+class PingStatus(enum.StrEnum):
+    """Where an invitation stands.
+
+    An enum rather than a table, unlike the avatars: these are states the code
+    branches on, not rows anyone would add to. A tenth status would mean new
+    behaviour, and no INSERT can supply that.
+    """
+
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    DECLINED = "declined"
 
 
 class User(Base):
@@ -151,6 +174,62 @@ class Weight(Base):
 # that is a range scan rather than a scan-and-sort. Leading with user_id also
 # makes it serve the foreign key, so the column needs no index of its own.
 Index("ix_weights_user_recorded", Weight.user_id, Weight.recorded_at.desc())
+
+
+class Ping(Base):
+    """An invitation to train together at a given time.
+
+    One row, not one per side: the sender reads it as sent and the recipient as
+    received, and an answer lands in the single place both of them look. The
+    on-device version had to keep two copies and mirror responses between them,
+    which is a consistency problem this doesn't have.
+    """
+
+    __tablename__ = "pings"
+    __table_args__ = (
+        # The spam guard, as a constraint rather than a check in the service:
+        # a check-then-insert races exactly when someone is hammering the
+        # button, which is the case it exists for.
+        UniqueConstraint("from_user_id", "to_user_id", "at", name="uq_ping_slot"),
+        # Each tab reads one of these: mine, most recent first.
+        Index("ix_pings_from_at", "from_user_id", "at"),
+        Index("ix_pings_to_at", "to_user_id", "at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    from_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE")
+    )
+    to_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE")
+    )
+    # When the training is, not when the ping was sent — that's created_at.
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[PingStatus] = mapped_column(
+        Enum(
+            PingStatus,
+            name="ping_status",
+            values_callable=lambda enum_type: [m.value for m in enum_type],
+        ),
+        default=PingStatus.PENDING,
+        server_default=PingStatus.PENDING.value,
+    )
+    responded_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    # foreign_keys has to be spelled out: two columns point at users, so
+    # SQLAlchemy can't tell which side each relationship follows. Both are here
+    # because every ping is rendered as the *other* person — their username and
+    # avatar — and which one that is depends on who's asking.
+    #
+    # Deleting an account takes its pings in both directions with it, which the
+    # ON DELETE CASCADE above does in the database rather than here.
+    from_user: Mapped[User] = relationship(foreign_keys=[from_user_id])
+    to_user: Mapped[User] = relationship(foreign_keys=[to_user_id])
 
 
 class RefreshToken(Base):
