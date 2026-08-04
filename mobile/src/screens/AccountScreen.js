@@ -13,9 +13,11 @@ import { useAuth } from '../AuthContext';
 import { useTheme, useThemedStyles } from '../ThemeContext';
 import { useTabBarInset } from '../components/FloatingTabBar';
 import { Button, Card } from '../components/ui';
+import { findAvatar } from '../avatars';
 import { fonts, radius, spacing, themeList } from '../theme';
 import ChangeEmailScreen from './ChangeEmailScreen';
 import ChangePasswordScreen from './ChangePasswordScreen';
+import AvatarScreen from './AvatarScreen';
 import EditProfileScreen from './EditProfileScreen';
 import DeleteAccountScreen from './DeleteAccountScreen';
 
@@ -103,7 +105,8 @@ function ThemeSection() {
 }
 
 export default function AccountScreen() {
-  const { user, logOut } = useAuth();
+  const { user, logOut, updateProfile } = useAuth();
+  const { colors } = useTheme();
   const tabBarInset = useTabBarInset();
   const styles = useThemedStyles(makeStyles);
   const [sheet, setSheet] = useState(null);
@@ -126,6 +129,8 @@ export default function AccountScreen() {
       .filter(Boolean)
       .join(' · ') || 'Not set';
 
+  const chosen = findAvatar(user.avatar);
+
   const close = () => setSheet(null);
   const done = (message) => {
     setSheet(null);
@@ -143,13 +148,25 @@ export default function AccountScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <Card style={styles.identity}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{(user.username || user.email)[0].toUpperCase()}</Text>
-          </View>
+          <Pressable
+            onPress={() => setSheet('avatar')}
+            style={({ pressed }) => [styles.avatar, pressed && styles.avatarPressed]}
+            accessibilityRole="button"
+            accessibilityLabel={
+              chosen ? `Avatar: ${chosen.label}. Tap to change.` : 'Choose an avatar'
+            }
+          >
+            {chosen ? (
+              <chosen.Icon size={28} color={colors.accentText} />
+            ) : (
+              <Text style={styles.avatarText}>{(user.username || user.email)[0].toUpperCase()}</Text>
+            )}
+          </Pressable>
           <View style={styles.flex}>
             <Text style={styles.name} numberOfLines={1}>
               @{user.username}
             </Text>
+            {!!chosen && <Text style={styles.avatarLabel}>{chosen.label}</Text>}
             <Text style={styles.email} numberOfLines={1}>
               {user.email}
             </Text>
@@ -196,6 +213,13 @@ export default function AccountScreen() {
         </Card>
       </ScrollView>
 
+      {sheet === 'avatar' && (
+        <AvatarScreen
+          selected={user.avatar}
+          onSelect={(avatar) => updateProfile({ avatar }).catch((e) => setFlash(e.message))}
+          onClose={close}
+        />
+      )}
       {sheet === 'profile' && <EditProfileScreen onClose={close} onDone={done} />}
       {sheet === 'email' && <ChangeEmailScreen onClose={close} onDone={done} />}
       {sheet === 'password' && <ChangePasswordScreen onClose={close} onDone={done} />}
@@ -225,6 +249,15 @@ const makeStyles = (colors) =>
       alignItems: 'center',
       justifyContent: 'center',
       marginRight: spacing.md,
+    },
+    avatarPressed: {
+      opacity: 0.7,
+    },
+    avatarLabel: {
+      fontFamily: fonts.medium,
+      color: colors.accent,
+      fontSize: 12,
+      marginTop: 2,
     },
     avatarText: {
       fontFamily: fonts.bold,

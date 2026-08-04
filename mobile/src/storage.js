@@ -132,7 +132,7 @@ export async function changePassword({ currentPassword, newPassword }) {
   await saveTokens(tokens);
 }
 
-/** Height and goal weight. Send only what changed — an omitted field is left alone. */
+/** Height, goal weight and avatar. Send only what changed — an omitted field is left alone. */
 export const updateProfile = (changes) =>
   request('/account/profile', { method: 'PATCH', body: changes }).then(rememberUser);
 
