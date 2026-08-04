@@ -39,7 +39,7 @@ function bmiBand(bmi) {
  * like any other reading, so the history begins the day you signed up.
  */
 export default function OnboardingScreen({ onDone }) {
-  const { user, updateProfile } = useAuth();
+  const { updateProfile } = useAuth();
   const { addWeight } = useData();
   const styles = useThemedStyles(makeStyles);
 
@@ -114,10 +114,7 @@ export default function OnboardingScreen({ onDone }) {
         {step === 1 ? (
           <>
             <Text style={styles.title}>About you</Text>
-            <Text style={styles.blurb}>
-              Your height doesn't change, so we only ask once. Today's weight becomes the first
-              entry in your log.
-            </Text>
+            <Text style={styles.blurb}>You can fill these in later from the Account tab.</Text>
 
             <Field
               label="Height (cm)"
@@ -183,10 +180,6 @@ export default function OnboardingScreen({ onDone }) {
         <Pressable onPress={onDone} style={styles.skip} hitSlop={8} disabled={busy}>
           <Text style={styles.skipText}>Skip for now</Text>
         </Pressable>
-
-        <Text style={styles.footnote}>
-          Signed in as @{user.username}. You can fill these in later from Account.
-        </Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -214,14 +207,15 @@ const makeStyles = (colors) =>
       fontFamily: fonts.bold,
       color: colors.text,
       fontSize: 28,
+      marginBottom: spacing.lg,
     },
     blurb: {
       fontFamily: fonts.regular,
       color: colors.muted,
       fontSize: 14,
       lineHeight: 20,
-      marginTop: spacing.sm,
-      marginBottom: spacing.xl,
+      marginTop: -spacing.sm,
+      marginBottom: spacing.lg,
     },
     derived: {
       fontFamily: fonts.regular,
@@ -248,12 +242,5 @@ const makeStyles = (colors) =>
       fontFamily: fonts.medium,
       color: colors.muted,
       fontSize: 14,
-    },
-    footnote: {
-      fontFamily: fonts.regular,
-      color: colors.muted,
-      fontSize: 12,
-      textAlign: 'center',
-      marginTop: spacing.xl,
     },
   });
