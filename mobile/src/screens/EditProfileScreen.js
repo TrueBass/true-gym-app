@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { StyleSheet, Text } from 'react-native';
 import { useAuth } from '../AuthContext';
-import { useData } from '../DataContext';
 import { useThemedStyles } from '../ThemeContext';
 import FormSheet from '../components/FormSheet';
 import { Button, Field } from '../components/ui';
@@ -11,11 +10,9 @@ const MIN_HEIGHT_CM = 50;
 const MAX_HEIGHT_CM = 300;
 
 const num = (value) => parseFloat(String(value).replace(',', '.'));
-const round1 = (value) => Math.round(value * 10) / 10;
 
 export default function EditProfileScreen({ onClose, onDone }) {
   const { user, updateProfile } = useAuth();
-  const { weights } = useData();
   const styles = useThemedStyles(makeStyles);
 
   const [height, setHeight] = useState(user.heightCm == null ? '' : String(user.heightCm));
@@ -28,12 +25,7 @@ export default function EditProfileScreen({ onClose, onDone }) {
     setError('');
   };
 
-  const latest = weights[0]?.kg ?? null;
   const heightCm = num(height);
-  const bmi =
-    latest && Number.isFinite(heightCm) && heightCm >= MIN_HEIGHT_CM
-      ? round1(latest / (heightCm / 100) ** 2)
-      : null;
 
   async function submit() {
     // Blank means "clear it" — the endpoint tells an omitted field from a null one.
@@ -79,13 +71,6 @@ export default function EditProfileScreen({ onClose, onDone }) {
         onSubmitEditing={submit}
       />
 
-      {!!bmi && (
-        <Text style={styles.derived}>
-          At your latest weight of {latest} kg, that's a BMI of{' '}
-          <Text style={styles.derivedValue}>{bmi}</Text>.
-        </Text>
-      )}
-
       {!!error && <Text style={styles.error}>{error}</Text>}
       <Button title="Save" onPress={submit} loading={busy} />
     </FormSheet>
@@ -94,17 +79,6 @@ export default function EditProfileScreen({ onClose, onDone }) {
 
 const makeStyles = (colors) =>
   StyleSheet.create({
-    derived: {
-      fontFamily: fonts.regular,
-      color: colors.muted,
-      fontSize: 13,
-      lineHeight: 19,
-      marginBottom: spacing.md,
-    },
-    derivedValue: {
-      fontFamily: fonts.bold,
-      color: colors.accent,
-    },
     error: {
       fontFamily: fonts.medium,
       color: colors.danger,
