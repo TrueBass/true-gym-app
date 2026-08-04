@@ -1,4 +1,3 @@
-import IconCanary from '@tabler/icons-react-native/IconCanary';
 import IconHistory from '@tabler/icons-react-native/IconHistory';
 import IconThumbDown from '@tabler/icons-react-native/IconThumbDown';
 import IconThumbUp from '@tabler/icons-react-native/IconThumbUp';
@@ -237,14 +236,6 @@ export default function PingScreen() {
         }
         ListHeaderComponent={
           <>
-            <View style={styles.hero}>
-              <IconCanary size={40} color={colors.accent} />
-              <View style={styles.heroText}>
-                <Text style={styles.heroTitle}>PingUIn</Text>
-                <Text style={styles.heroHint}>Ping a friend to train with you.</Text>
-              </View>
-            </View>
-
             {!!loadError && <Notice message={loadError} onRetry={refresh} />}
 
             <Card style={styles.form}>
@@ -526,26 +517,6 @@ const makeStyles = (colors) =>
     },
     list: {
       padding: spacing.md,
-    },
-    hero: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.md,
-      marginBottom: spacing.md,
-    },
-    heroText: {
-      flex: 1,
-    },
-    heroTitle: {
-      fontFamily: fonts.bold,
-      color: colors.text,
-      fontSize: 20,
-    },
-    heroHint: {
-      fontFamily: fonts.regular,
-      color: colors.muted,
-      fontSize: 13,
-      marginTop: 2,
     },
     form: {
       marginBottom: spacing.lg,

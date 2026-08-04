@@ -1,6 +1,6 @@
 /**
  * The app's data layer. Accounts, personal records and body weight now live on
- * the API; the theme and everything PingUIn does are still on the device.
+ * the API; the theme and everything Pinguin does are still on the device.
  *
  * Pings stayed local because the API has no endpoints for them. They work only
  * between accounts that have signed in on this device — the same limitation as
