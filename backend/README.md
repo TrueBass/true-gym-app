@@ -77,7 +77,7 @@ Everything except `/auth/*` and `/health` needs
 | POST | `/weights` | append a reading |
 | GET | `/weights/stats` | latest, deltas, 7/30-day averages, trend |
 | DELETE | `/weights/{id}` | |
-| PATCH | `/account/profile` | height and goal weight; no password needed |
+| PATCH | `/account/profile` | height, goal weight and avatar; no password needed |
 | PATCH | `/account/email` | needs the current password |
 | PATCH | `/account/username` | needs the current password |
 | PATCH | `/account/password` | ends every other session, returns a new pair |
@@ -108,6 +108,13 @@ day the user joined. All three are optional, so a skipped signup screen still
 leaves a usable account, and `PATCH /account/profile` fills them in later. On
 that route an omitted field keeps its value while an explicit `null` clears it —
 otherwise a screen editing only the goal would wipe the height every save.
+
+**Avatars** are a Postgres enum, `avatar_key`, holding the nine keys in
+`mobile/src/avatars.js`. Only the key is stored: the artwork ships inside the
+app, so redrawing an avatar never touches the database, and a key the client
+doesn't know would render as nothing — which is why the column refuses one.
+Adding a tenth is `ALTER TYPE avatar_key ADD VALUE` in a migration, and the two
+lists have to be changed together.
 
 **Layout.** `routers/` handle HTTP and nothing else. `services/` hold the domain
 logic and raise the errors in `errors.py`, which `main.py` maps to status codes.

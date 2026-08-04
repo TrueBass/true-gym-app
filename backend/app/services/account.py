@@ -72,17 +72,19 @@ async def _commit_handle_change(session: AsyncSession, taken_message: str) -> No
 async def update_profile(
     session: AsyncSession, user: User, changes: ProfileRequest
 ) -> User:
-    """Set height and goal weight, either or both.
+    """Set height, goal weight or avatar — any of them, in any combination.
 
     A field left out of the request is left alone; a field sent as null is
     cleared. Without that distinction the screen that edits only the goal would
-    wipe the height every time it saved.
+    wipe the height every time it saved, and picking an avatar would erase both.
     """
     sent = changes.model_fields_set
     if "height_cm" in sent:
         user.height_cm = to_decimal(changes.height_cm)
     if "goal_weight_kg" in sent:
         user.goal_weight_kg = to_decimal(changes.goal_weight_kg)
+    if "avatar" in sent:
+        user.avatar = changes.avatar
 
     await session.commit()
     return user

@@ -1,15 +1,40 @@
 from __future__ import annotations
 
+import enum
 import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, ForeignKey, Index, Numeric, String, Uuid, func
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, Numeric, String, Uuid, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
     pass
+
+
+class AvatarKey(enum.StrEnum):
+    """The nine avatars a user can pick, worst-to-best.
+
+    A closed set as a database type, because it is one: the artwork ships inside
+    the app, so a key the client doesn't know renders as nothing. Postgres
+    rejecting an unknown value is better than a broken picture.
+
+    These are the keys, never the pictures — `mobile/src/avatars.js` decides
+    what each one looks like, and redrawing an avatar has to stay a change no
+    migration hears about. Adding a tenth means ALTER TYPE ... ADD VALUE; that
+    is deliberate friction, since every stored row keeps pointing at these.
+    """
+
+    HERE_TO_GAIN = "here_to_gain"
+    HERE_TO_LOSE = "here_to_lose"
+    WARMING_UP = "warming_up"
+    CASUAL = "casual"
+    REGULAR = "regular"
+    CONSISTENT = "consistent"
+    ADVANCED = "advanced"
+    BATMAN = "batman"
+    UNIT = "unit"
 
 
 class User(Base):
@@ -31,6 +56,17 @@ class User(Base):
     height_cm: Mapped[Decimal | None] = mapped_column(Numeric(4, 1), nullable=True)
     goal_weight_kg: Mapped[Decimal | None] = mapped_column(
         Numeric(5, 2), nullable=True
+    )
+    # values_callable stores "batman" rather than SQLAlchemy's default of the
+    # member name, "BATMAN" — the column should read as the same string the app
+    # and the API pass around, not a second spelling of it.
+    avatar: Mapped[AvatarKey | None] = mapped_column(
+        Enum(
+            AvatarKey,
+            name="avatar_key",
+            values_callable=lambda enum_type: [m.value for m in enum_type],
+        ),
+        nullable=True,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

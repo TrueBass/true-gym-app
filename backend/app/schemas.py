@@ -30,6 +30,8 @@ MAX_BODY_WEIGHT_KG = 999.99
 MIN_HEIGHT_CM = 50.0
 MAX_HEIGHT_CM = 300.0
 
+from app.models import AvatarKey
+
 if TYPE_CHECKING:
     from app.models import PersonalRecord, Weight
 
@@ -128,6 +130,8 @@ class UserOut(ApiModel):
     # prompt for the missing screen, or hide whatever it was going to derive.
     height_cm: float | None = None
     goal_weight_kg: float | None = None
+    # The key only. What it looks like is the app's business.
+    avatar: AvatarKey | None = None
 
 
 class ProfileRequest(ApiModel):
@@ -145,6 +149,7 @@ class ProfileRequest(ApiModel):
 
     height_cm: Height | None = None
     goal_weight_kg: GoalWeight | None = None
+    avatar: AvatarKey | None = None
 
 
 class TokenPair(ApiModel):
