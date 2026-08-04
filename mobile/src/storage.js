@@ -12,34 +12,13 @@ import { clearTokens, getRefreshToken, hasSession, loadTokens, request, saveToke
 
 const THEME_KEY = '@gym/theme';
 const SCHEMA_KEY = '@gym/schema';
-const KNOWN_USERS_KEY = '@gym/known-users';
-const friendsKey = (userId) => `@gym/friends/${userId}`;
-const pingsKey = (userId) => `@gym/pings/${userId}`;
-const inboxKey = (userId) => `@gym/inbox/${userId}`;
 
 /**
- * Bumped whenever stored records change shape. Version 4 drops the local
- * accounts, records and weights the API now owns; the theme survives, being a
- * device preference rather than data.
+ * Bumped whenever stored records change shape. Version 5 drops the last of the
+ * local data — pings, friends and the device account directory — now that the
+ * API owns them too. The theme survives, being a device preference.
  */
-const SCHEMA_VERSION = '4';
-
-async function readJSON(key, fallback) {
-  const raw = await AsyncStorage.getItem(key);
-  if (!raw) return fallback;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return fallback;
-  }
-}
-
-const writeJSON = (key, value) => AsyncStorage.setItem(key, JSON.stringify(value));
-
-export const newId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
-
-const cleanUsername = (username) => String(username ?? '').trim().replace(/^@+/, '');
-const usernameKey = (username) => cleanUsername(username).toLowerCase();
+const SCHEMA_VERSION = '5';
 
 /* ---------------------------------- setup --------------------------------- */
 
@@ -60,13 +39,6 @@ export async function initStorage() {
 
 /* ---------------------------------- auth ---------------------------------- */
 
-/** Local directory of accounts seen on this device — all PingUIn has to go on. */
-async function rememberUser(user) {
-  const known = await readJSON(KNOWN_USERS_KEY, []);
-  await writeJSON(KNOWN_USERS_KEY, [user, ...known.filter((u) => u.id !== user.id)]);
-  return user;
-}
-
 export async function signUp({ username, email, password }) {
   const { user, tokens } = await request('/auth/signup', {
     method: 'POST',
@@ -74,7 +46,7 @@ export async function signUp({ username, email, password }) {
     body: { username, email, password },
   });
   await saveTokens(tokens);
-  return rememberUser(user);
+  return user;
 }
 
 export async function logIn({ email, password }) {
@@ -84,7 +56,7 @@ export async function logIn({ email, password }) {
     body: { email, password },
   });
   await saveTokens(tokens);
-  return rememberUser(user);
+  return user;
 }
 
 export async function logOut() {
@@ -114,14 +86,10 @@ export async function getCurrentUser() {
 /* --------------------------------- account -------------------------------- */
 
 export const changeEmail = ({ newEmail, currentPassword }) =>
-  request('/account/email', { method: 'PATCH', body: { newEmail, currentPassword } }).then(
-    rememberUser
-  );
+  request('/account/email', { method: 'PATCH', body: { newEmail, currentPassword } });
 
 export const changeUsername = ({ username, currentPassword }) =>
-  request('/account/username', { method: 'PATCH', body: { username, currentPassword } }).then(
-    rememberUser
-  );
+  request('/account/username', { method: 'PATCH', body: { username, currentPassword } });
 
 export async function changePassword({ currentPassword, newPassword }) {
   // Changing it ends every other session, so this answers with a fresh pair.
@@ -134,7 +102,7 @@ export async function changePassword({ currentPassword, newPassword }) {
 
 /** Height, goal weight and avatar. Send only what changed — an omitted field is left alone. */
 export const updateProfile = (changes) =>
-  request('/account/profile', { method: 'PATCH', body: changes }).then(rememberUser);
+  request('/account/profile', { method: 'PATCH', body: changes });
 
 /**
  * Whether the signup questions have been dealt with. Kept on the device rather
@@ -188,124 +156,41 @@ export const deleteWeight = (entryId) => request(`/weights/${entryId}`, { method
 
 /* ---------------------------------- pings --------------------------------- */
 
-export async function findUserByUsername(username) {
-  const known = await readJSON(KNOWN_USERS_KEY, []);
-  return known.find((u) => usernameKey(u.username) === usernameKey(username)) ?? null;
-}
-
-/** People this user has pinged before, most recent first. */
-export const getFriends = (userId) => readJSON(friendsKey(userId), []);
-
-/** Pings this user has sent. */
-export const getPings = (userId) => readJSON(pingsKey(userId), []);
-
-/** Pings sent to this user. */
-export const getInbox = (userId) => readJSON(inboxKey(userId), []);
-
-export async function sendPing(userId, { username, at }) {
-  const target = cleanUsername(username);
-  if (!target) throw new Error('Enter a username.');
-  if (!Number.isFinite(at)) throw new Error('Pick a date and time.');
-
-  const recipient = await findUserByUsername(target);
-  if (!recipient) throw new Error(`No user called @${target} on this device.`);
-  if (recipient.id === userId) throw new Error("You can't ping yourself.");
-
-  const sender = (await readJSON(KNOWN_USERS_KEY, [])).find((u) => u.id === userId);
-  if (!sender) throw new Error('Account not found.');
-
-  const [friends, sent, inbox] = await Promise.all([
-    getFriends(userId),
-    getPings(userId),
-    getInbox(recipient.id),
-  ]);
-
-  const existing = friends.find((f) => usernameKey(f.username) === usernameKey(recipient.username));
-  const nextFriends = [
-    {
-      id: existing?.id ?? newId(),
-      userId: recipient.id,
-      username: recipient.username,
-      pingCount: (existing?.pingCount ?? 0) + 1,
-      lastPingedAt: Date.now(),
-    },
-    ...friends.filter((f) => f.id !== existing?.id),
-  ];
-
-  const sentAt = Date.now();
-  // Both copies carry the same pingId so a response can be mirrored back.
-  const pingId = newId();
-  const ping = {
-    id: newId(),
-    pingId,
-    toUserId: recipient.id,
-    username: recipient.username,
-    at,
-    sentAt,
-    status: 'pending',
-  };
-  const received = {
-    id: newId(),
-    pingId,
-    fromUserId: userId,
-    fromUsername: sender.username,
-    at,
-    sentAt,
-    status: 'pending',
-  };
-
-  const nextSent = [ping, ...sent];
-
-  await Promise.all([
-    writeJSON(friendsKey(userId), nextFriends),
-    writeJSON(pingsKey(userId), nextSent),
-    writeJSON(inboxKey(recipient.id), [received, ...inbox]),
-  ]);
-
-  return { ping, friends: nextFriends, pings: nextSent, recipient };
-}
-
-export async function deletePing(userId, pingId) {
-  const next = (await getPings(userId)).filter((p) => p.id !== pingId);
-  await writeJSON(pingsKey(userId), next);
-  return next;
-}
-
-export const PING_RESPONSES = ['accepted', 'declined'];
-
 /**
- * Answers a ping in this user's inbox and mirrors the answer onto the sender's
- * copy, so they can see it in their Sent list.
+ * `user` on a ping is whoever the viewer isn't, so the same shape draws a row in
+ * either tab. `at` arrives as ISO and is parsed here, the way weights are.
  */
-export async function respondToPing(userId, inboxId, status) {
-  if (!PING_RESPONSES.includes(status)) throw new Error('Unknown response.');
+const toPing = ({ id, user, at, status, sentAt, respondedAt }) => ({
+  id,
+  user,
+  at: Date.parse(at),
+  status,
+  sentAt: Date.parse(sentAt),
+  respondedAt: respondedAt ? Date.parse(respondedAt) : null,
+});
 
-  const inbox = await getInbox(userId);
-  const entry = inbox.find((p) => p.id === inboxId);
-  if (!entry) throw new Error('Ping not found.');
-
-  const respondedAt = Date.now();
-  const nextInbox = inbox.map((p) => (p.id === inboxId ? { ...p, status, respondedAt } : p));
-  const writes = [writeJSON(inboxKey(userId), nextInbox)];
-
-  if (entry.pingId) {
-    const sent = await getPings(entry.fromUserId);
-    if (sent.some((p) => p.pingId === entry.pingId)) {
-      writes.push(
-        writeJSON(
-          pingsKey(entry.fromUserId),
-          sent.map((p) => (p.pingId === entry.pingId ? { ...p, status, respondedAt } : p))
-        )
-      );
-    }
-  }
-
-  await Promise.all(writes);
-  return nextInbox;
+export async function getReceivedPings() {
+  return (await request('/pings/received')).map(toPing);
 }
 
-export async function removeFriend(userId, friendId) {
-  const next = (await getFriends(userId)).filter((f) => f.id !== friendId);
-  await writeJSON(friendsKey(userId), next);
-  return next;
+export async function getSentPings() {
+  return (await request('/pings/sent')).map(toPing);
 }
+
+/** By username — what the sender typed, and what identifies one account. */
+export async function sendPing({ username, at }) {
+  return toPing(
+    await request('/pings', {
+      method: 'POST',
+      body: { username, at: new Date(at).toISOString() },
+    })
+  );
+}
+
+/** Only the recipient can answer, and they may change their answer. */
+export async function respondToPing(pingId, status) {
+  return toPing(await request(`/pings/${pingId}`, { method: 'PATCH', body: { status } }));
+}
+
+/** The sender withdrawing. A recipient declines instead. */
+export const cancelPing = (pingId) => request(`/pings/${pingId}`, { method: 'DELETE' });

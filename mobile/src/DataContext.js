@@ -17,6 +17,8 @@ export function DataProvider({ children }) {
   const { user } = useAuth();
   const [prs, setPRs] = useState([]);
   const [weights, setWeights] = useState([]);
+  const [received, setReceived] = useState([]);
+  const [sent, setSent] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -24,9 +26,16 @@ export function DataProvider({ children }) {
     setLoading(true);
     setError('');
     try {
-      const [nextPRs, nextWeights] = await Promise.all([storage.getPRs(), storage.getWeights()]);
+      const [nextPRs, nextWeights, nextReceived, nextSent] = await Promise.all([
+        storage.getPRs(),
+        storage.getWeights(),
+        storage.getReceivedPings(),
+        storage.getSentPings(),
+      ]);
       setPRs(nextPRs);
       setWeights(nextWeights);
+      setReceived(nextReceived);
+      setSent(nextSent);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -38,6 +47,8 @@ export function DataProvider({ children }) {
     if (!user) {
       setPRs([]);
       setWeights([]);
+      setReceived([]);
+      setSent([]);
       setError('');
       return;
     }
@@ -70,9 +81,42 @@ export function DataProvider({ children }) {
     setWeights((prev) => prev.filter((e) => e.id !== entryId));
   }, []);
 
+  const sendPing = useCallback(async (input) => {
+    const ping = await storage.sendPing(input);
+    setSent((prev) => [ping, ...prev]);
+    return ping;
+  }, []);
+
+  /** Answering replaces the row in place — the list stays ordered by time. */
+  const respondToPing = useCallback(async (pingId, status) => {
+    const ping = await storage.respondToPing(pingId, status);
+    setReceived((prev) => prev.map((p) => (p.id === pingId ? ping : p)));
+  }, []);
+
+  const cancelPing = useCallback(async (pingId) => {
+    await storage.cancelPing(pingId);
+    setSent((prev) => prev.filter((p) => p.id !== pingId));
+  }, []);
+
   const value = useMemo(
-    () => ({ prs, weights, loading, error, refresh: load, savePR, deletePR, addWeight, deleteWeight }),
-    [prs, weights, loading, error, load, savePR, deletePR, addWeight, deleteWeight]
+    () => ({
+      prs,
+      weights,
+      received,
+      sent,
+      loading,
+      error,
+      refresh: load,
+      savePR,
+      deletePR,
+      addWeight,
+      deleteWeight,
+      sendPing,
+      respondToPing,
+      cancelPing,
+    }),
+    [prs, weights, received, sent, loading, error, load, savePR, deletePR, addWeight,
+     deleteWeight, sendPing, respondToPing, cancelPing]
   );
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
