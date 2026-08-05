@@ -14,12 +14,16 @@ services:
     # in it — that takes an ALTER ROLE, or deleting the volume.
     volumes:
       - true_gym_data:/var/lib/postgresql/data
-    # Published on the host so one DATABASE_URL works everywhere: the API
-    # container reaches it through localhost (host networking, below) and so
-    # does a plain `uvicorn` run from the venv. Nothing else may hold 5432 —
-    # stop the system cluster first.
+    # The API does not come through here — it reaches this container by service
+    # name on the compose network. This publish exists only so psql and a venv
+    # `uvicorn` can reach the same database from the host.
+    #
+    # 5433, not 5432, and bound to loopback. A published port is claimed on the
+    # host, so publishing 5432 would fight whatever the system's own postgres
+    # is doing with it; off that port the two coexist and neither has to be
+    # stopped. Loopback because nothing outside this machine needs the database.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5433:5432"
     healthcheck:
       # -h forces TCP. Without it pg_isready asks the Unix socket, which the
       # temporary server used while initialising a fresh volume already answers
@@ -38,11 +42,19 @@ services:
   api:
     build: .
     env_file: .env
-    # Host networking, so the container resolves the same localhost:5432 that
-    # .env names — no second URL for running the API outside Docker. It also
-    # puts uvicorn on the host's interfaces, which is what a phone running
-    # Expo Go needs to reach the API over the network.
-    network_mode: host
+    environment:
+      # Overrides the DATABASE_URL in .env, which names the host so a venv run
+      # can reach the published port above. In here `db` is the service next
+      # door on the compose network, and the host's ports are not involved at
+      # all — which is the point: nothing the API does can collide with the
+      # system's postgres.
+      DATABASE_URL: postgresql+asyncpg://${PGUSER}:${PGPASSWORD}@db:5432/${PGDATABASE:-true_gym}
+    # Published on every interface, because a phone running Expo Go reaches
+    # this over the network. Note that Docker forwards published ports before
+    # ufw's input rules see them, so a firewall rule for 8000 is not what is
+    # keeping this closed — the LAN can reach it regardless.
+    ports:
+      - "8000:8000"
     depends_on:
       db:
         condition: service_healthy

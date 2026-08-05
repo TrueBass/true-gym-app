@@ -30,9 +30,11 @@ session model. Everything runs from `backend/`:
 cd backend && docker compose up --build
 ```
 
-That brings up Postgres and the API together on port 8000. To run against your
-own Postgres instead, use the venv described in the README; both read the same
-`DATABASE_URL`, and only one thing at a time may hold port 5432.
+That brings up Postgres and the API together on port 8000. The API reaches the
+database over compose's network, so nothing here competes for the host's 5432
+and a Postgres installed on the machine can keep running. The database is
+published on `127.0.0.1:5433` for psql and for the venv run described in the
+README — mind which of the two you are connected to.
 
 `backend/.env.example` documents every variable and `backend/.env` is
 gitignored. Two rules about its values: nothing may be prefixed

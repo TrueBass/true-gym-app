@@ -38,10 +38,30 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/uvicorn app.main:app --reload
 ```
 
-Both read the same `DATABASE_URL`. The compose database publishes 5432 on the
-host precisely so one URL works either way — which also means **nothing else may
-hold 5432**. A system Postgres cluster, or `gym_tg_bot`'s container, will take it
-first and this stack won't start. Stop those before bringing it up.
+The two runs reach the database by different routes, and the difference matters
+the moment something goes looking for the wrong data.
+
+Inside compose, the API talks to `db:5432` — the database container next door
+on compose's own network, set by `environment:` in `docker-compose.yml`, which
+overrides whatever `.env` says. The host's ports are not involved, so the stack
+starts no matter what else is running on the machine.
+
+A venv run has no such network, so it goes through the port the database
+container publishes: `127.0.0.1:5433`. That is what `DATABASE_URL` in `.env` is
+for, and 5433 rather than 5432 so a system Postgres cluster — or
+`gym_tg_bot`'s container — can keep 5432 and neither has to be stopped.
+
+Which is also how to reach it with psql, and worth being deliberate about,
+since two servers on one machine holding a database of the same name is an easy
+way to spend an afternoon:
+
+```
+psql -h localhost -p 5433 -U true_gym -d true_gym     # what the API reads
+docker exec -it backend-db-1 psql -U true_gym -d true_gym   # same, from inside
+```
+
+`select version()` names which one answered: the container is a Debian build,
+an Ubuntu system cluster says so.
 
 The API binds every interface, so a phone running Expo Go reaches it at
 `http://<this machine>:8000`. Interactive docs are at `/docs`.
