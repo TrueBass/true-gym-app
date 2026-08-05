@@ -178,17 +178,29 @@ export default function PingScreen() {
   const pendingCount = received.filter((p) => p.status === 'pending').length;
 
   /**
+   * Each tab answers one question, so none of them has to label its rows.
+   *
+   *   received  what still needs an answer from me — an inbox, so a ping leaves
+   *             it the moment it's answered
+   *   accepted  what both of us agreed to, whoever asked
+   *   sent      what I asked for, however it turned out
+   *
+   * A ping I declined is therefore gone from my side once I've declined it,
+   * which is the point of an inbox. It stays on the sender's sent tab, marked
+   * declined — they're the one the outcome matters to.
+   *
    * `direction` is added on merge: PingOut always describes the other person, so
-   * a combined list otherwise can't say whether you sent or were sent.
+   * the accepted tab otherwise can't say whether I sent or was sent.
    */
   const rows = useMemo(() => {
     const inbound = received.map((p) => ({ ...p, direction: 'in' }));
     const outbound = sent.map((p) => ({ ...p, direction: 'out' }));
-    const everything = [...inbound, ...outbound].sort((a, b) => b.at - a.at);
 
-    if (tab === 'received') return inbound;
-    if (tab === 'accepted') return everything.filter((p) => p.status === 'accepted');
-    return everything;
+    if (tab === 'received') return inbound.filter((p) => p.status === 'pending');
+    if (tab === 'sent') return outbound;
+    return [...inbound, ...outbound]
+      .filter((p) => p.status === 'accepted')
+      .sort((a, b) => b.at - a.at);
   }, [tab, received, sent]);
 
   const send = useCallback(async () => {
@@ -202,7 +214,7 @@ export default function PingScreen() {
       const ping = await sendPing({ username: target, at: when.getTime() });
       setTarget('');
       setNotice(`Pinged @${ping.user.username}.`);
-      setTab('all');
+      setTab('sent');
     } catch (e) {
       setError(e.message);
     } finally {
@@ -334,20 +346,20 @@ export default function PingScreen() {
                 );
               })}
 
-              {/* Everything, both directions — no label, the icon says enough. */}
+              {/* Everything I've asked for — no label, the icon says enough. */}
               <Pressable
-                onPress={() => setTab('all')}
+                onPress={() => setTab('sent')}
                 style={({ pressed }) => [
                   styles.tab,
                   styles.tabSquare,
-                  tab === 'all' && styles.tabActive,
+                  tab === 'sent' && styles.tabActive,
                   pressed && styles.chipPressed,
                 ]}
                 accessibilityRole="tab"
-                accessibilityState={{ selected: tab === 'all' }}
-                accessibilityLabel="All pings"
+                accessibilityState={{ selected: tab === 'sent' }}
+                accessibilityLabel="Pings you sent"
               >
-                <IconHistory size={18} color={tab === 'all' ? colors.accent : colors.muted} />
+                <IconHistory size={18} color={tab === 'sent' ? colors.accent : colors.muted} />
               </Pressable>
             </View>
 
@@ -357,14 +369,14 @@ export default function PingScreen() {
           <Empty
             title={
               tab === 'received'
-                ? 'Nothing received'
+                ? 'Nothing to answer'
                 : tab === 'accepted'
                   ? 'Nothing accepted yet'
-                  : 'No pings yet'
+                  : 'Nothing sent yet'
             }
             hint={
               tab === 'received'
-                ? 'Invitations from other people land here.'
+                ? 'Invitations waiting on you land here.'
                 : tab === 'accepted'
                   ? 'Sessions both of you agreed to show up here.'
                   : "Invite someone above and it'll show up here."
@@ -376,7 +388,6 @@ export default function PingScreen() {
           const past = at.getTime() < Date.now();
           const avatar = AVATARS.find((a) => a.key === item.user.avatar);
           const inbound = (item.direction ?? 'in') === 'in';
-          const answerable = inbound && item.status === 'pending';
 
           return (
             <Card style={styles.row}>
@@ -389,12 +400,16 @@ export default function PingScreen() {
                   @{item.user.username}
                 </Text>
                 <Text style={styles.rowWhen}>
-                  {tab === 'received' ? '' : `${inbound ? 'from' : 'to'} · `}
+                  {/* Only the accepted tab mixes the two directions. */}
+                  {tab === 'accepted' ? `${inbound ? 'from' : 'to'} · ` : ''}
                   {formatDay(at)} · {formatTime(at)}
                 </Text>
               </View>
 
-              {answerable ? (
+              {/* Each tab holds one kind of thing, so the card says only what
+                  that tab can't: an answer to give, or how it turned out.
+                  Accepted needs neither — every row on it was accepted. */}
+              {tab === 'received' && (
                 <View style={styles.answer}>
                   <Pressable
                     onPress={() => answer(item, 'accepted')}
@@ -420,7 +435,9 @@ export default function PingScreen() {
                     <IconThumbDown size={17} color={colors.muted} />
                   </Pressable>
                 </View>
-              ) : (
+              )}
+
+              {tab === 'sent' && (
                 <View style={styles.answer}>
                   <Text
                     style={[
@@ -432,8 +449,10 @@ export default function PingScreen() {
                     {item.status === 'pending' ? (past ? 'expired' : 'pending') : item.status}
                   </Text>
 
-                  {/* Withdrawing is the sender's move; a recipient declines. */}
-                  {!inbound && item.status === 'pending' && !past && (
+                  {/* Withdrawing is the sender's move; a recipient declines.
+                      Only while it could still be answered — taking one back
+                      after the fact would rewrite what happened. */}
+                  {item.status === 'pending' && !past && (
                     <Pressable
                       onPress={() => withdraw(item)}
                       hitSlop={8}
