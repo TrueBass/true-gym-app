@@ -1,4 +1,5 @@
 import IconCheck from '@tabler/icons-react-native/IconCheck';
+import IconPlus from '@tabler/icons-react-native/IconPlus';
 import IconX from '@tabler/icons-react-native/IconX';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -15,7 +16,9 @@ import {
 } from 'react-native';
 import { useData } from '../DataContext';
 import { useTheme, useThemedStyles } from '../ThemeContext';
+import FloatingActionButton, { FAB_CLEARANCE } from '../components/FloatingActionButton';
 import { useTabBarInset } from '../components/FloatingTabBar';
+import FormSheet from '../components/FormSheet';
 import { Button, Card, Empty, Field, Notice } from '../components/ui';
 import { fonts, radius, spacing } from '../theme';
 
@@ -25,7 +28,7 @@ import { fonts, radius, spacing } from '../theme';
  * not editable: renaming is rare, and delete-and-re-add avoids a rename
  * colliding with an existing record.
  */
-function PRRow({ item, onSave, onRemove, styles }) {
+function PRRow({ item, onSave, onOpen, onRemove, styles }) {
   const { colors } = useTheme();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -58,12 +61,19 @@ function PRRow({ item, onSave, onRemove, styles }) {
 
   return (
     <Card style={styles.row}>
-      <View style={styles.rowMain}>
+      {/* The name opens the record in a sheet. Same edit as tapping the weight,
+          reached the way someone who didn't discover that would look for it. */}
+      <Pressable
+        onPress={() => onOpen(item)}
+        style={({ pressed }) => [styles.rowMain, pressed && styles.rowMainPressed]}
+        accessibilityRole="button"
+        accessibilityLabel={`${item.exercise}, open`}
+      >
         <Text style={styles.exercise} numberOfLines={1}>
           {item.exercise}
         </Text>
         <Text style={styles.date}>{new Date(item.updatedAt).toLocaleDateString()}</Text>
-      </View>
+      </Pressable>
 
       {editing ? (
         <View style={styles.weightEditing}>
@@ -122,30 +132,91 @@ function PRRow({ item, onSave, onRemove, styles }) {
   );
 }
 
+/**
+ * One record, in a sheet. The add form used to sit above the list taking up a
+ * third of the screen to do something done once a session; the same fields now
+ * open on demand, and open on an existing record when a row is tapped.
+ *
+ * Editing does not offer the exercise name. Saving is idempotent by name, so a
+ * renamed record would be saved as a second one and leave the first behind —
+ * deleting and re-adding is the honest way to rename, and rare enough to ask
+ * for. That is also why the name can be the sheet's title here.
+ *
+ * The draft lives in this component, so closing discards it and opening always
+ * starts from the record rather than from whatever was abandoned last time.
+ */
+function PRSheet({ pr, onSave, onClose }) {
+  const styles = useThemedStyles(makeStyles);
+  const [exercise, setExercise] = useState('');
+  const [weight, setWeight] = useState(pr ? String(pr.weight) : '');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const name = pr ? pr.exercise : exercise;
+
+  async function save() {
+    setError('');
+    const kg = parseFloat(weight.replace(',', '.'));
+
+    if (!name.trim()) return setError('Enter an exercise name.');
+    if (!Number.isFinite(kg) || kg <= 0) return setError('Enter a weight greater than 0.');
+
+    setBusy(true);
+    try {
+      await onSave({ exercise: name, weight: kg });
+      onClose();
+    } catch (e) {
+      // Left open, with the draft intact — the usual cause is the server being
+      // unreachable, and retyping it would be the wrong thing to ask for.
+      setError(e.message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <FormSheet
+      title={pr ? pr.exercise : 'New PR'}
+      description={
+        pr
+          ? `Last set ${new Date(pr.updatedAt).toLocaleDateString()}.`
+          : 'Saving an exercise you already have replaces its weight.'
+      }
+      onClose={onClose}
+    >
+      {!pr && (
+        <Field
+          label="Exercise"
+          value={exercise}
+          onChangeText={setExercise}
+          placeholder="Bench press"
+          autoCapitalize="words"
+          autoFocus
+        />
+      )}
+      <Field
+        label="Weight (kg)"
+        value={weight}
+        onChangeText={setWeight}
+        placeholder="100"
+        keyboardType="decimal-pad"
+        onSubmitEditing={save}
+        autoFocus={!!pr}
+        selectTextOnFocus={!!pr}
+      />
+      {!!error && <Text style={styles.error}>{error}</Text>}
+      <Button title="Save PR" onPress={save} loading={busy} />
+    </FormSheet>
+  );
+}
+
 export default function PRScreen() {
   const tabBarInset = useTabBarInset();
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
   const { prs, loading, error: loadError, refresh, savePR, deletePR } = useData();
-  const [exercise, setExercise] = useState('');
-  const [weight, setWeight] = useState('');
+  // 'new', or the record being opened. One sheet, so never both at once.
+  const [sheet, setSheet] = useState(null);
   const [error, setError] = useState('');
-
-  const add = useCallback(async () => {
-    setError('');
-    const kg = parseFloat(weight.replace(',', '.'));
-
-    if (!exercise.trim()) return setError('Enter an exercise name.');
-    if (!Number.isFinite(kg) || kg <= 0) return setError('Enter a weight greater than 0.');
-
-    try {
-      await savePR({ exercise, weight: kg });
-      setExercise('');
-      setWeight('');
-    } catch (e) {
-      setError(e.message);
-    }
-  }, [savePR, exercise, weight]);
 
   const updateWeight = useCallback(
     async (pr, kg) => {
@@ -181,7 +252,7 @@ export default function PRScreen() {
       <FlatList
         data={prs}
         keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={[styles.list, { paddingBottom: tabBarInset }]}
+        contentContainerStyle={[styles.list, { paddingBottom: tabBarInset + FAB_CLEARANCE }]}
         keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl refreshing={loading} onRefresh={refresh} tintColor={colors.muted} />
@@ -189,42 +260,38 @@ export default function PRScreen() {
         ListHeaderComponent={
           <>
             {!!loadError && <Notice message={loadError} onRetry={refresh} />}
-
-            <Card style={styles.form}>
-              <Field
-                label="Exercise"
-                value={exercise}
-                onChangeText={setExercise}
-                placeholder="Bench press"
-                autoCapitalize="words"
-              />
-              <Field
-                label="Weight (kg)"
-                value={weight}
-                onChangeText={setWeight}
-                placeholder="100"
-                keyboardType="decimal-pad"
-                onSubmitEditing={add}
-              />
-              {!!error && <Text style={styles.error}>{error}</Text>}
-              <Button title="Save PR" onPress={add} />
-              <Text style={styles.hint}>Tap a weight to edit it.</Text>
-            </Card>
+            {/* Whatever a row's own buttons couldn't report themselves. */}
+            {!!error && <Notice message={error} />}
           </>
         }
         ListEmptyComponent={
-          <Empty title="No PRs yet" hint="Add your first personal record above." />
+          <Empty title="No PRs yet" hint="Add your first personal record with the + button." />
         }
         renderItem={({ item }) => (
           <PRRow
             item={item}
             onSave={updateWeight}
+            onOpen={setSheet}
             onRemove={confirmRemove}
             styles={styles}
           />
         )}
       />
 
+      <FloatingActionButton onPress={() => setSheet('new')} accessibilityLabel="Add a PR">
+        <IconPlus size={26} color={colors.accentText} />
+      </FloatingActionButton>
+
+      {sheet && (
+        <PRSheet
+          pr={sheet === 'new' ? null : sheet}
+          onSave={savePR}
+          onClose={() => {
+            setSheet(null);
+            setError('');
+          }}
+        />
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -237,21 +304,11 @@ const makeStyles = (colors) =>
   list: {
     padding: spacing.md,
   },
-  form: {
-    marginBottom: spacing.lg,
-  },
   error: {
     fontFamily: fonts.regular,
     color: colors.danger,
     fontSize: 14,
     marginBottom: spacing.md,
-  },
-  hint: {
-    fontFamily: fonts.regular,
-    color: colors.muted,
-    fontSize: 12,
-    marginTop: spacing.sm,
-    textAlign: 'center',
   },
   row: {
     flexDirection: 'row',
@@ -261,6 +318,9 @@ const makeStyles = (colors) =>
   rowMain: {
     flex: 1,
     marginRight: spacing.sm,
+  },
+  rowMainPressed: {
+    opacity: 0.6,
   },
   exercise: {
     fontFamily: fonts.medium,
