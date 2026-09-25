@@ -97,12 +97,13 @@ export default function FloatingTabBar({ tabs, active, onChange }) {
   return (
     <Animated.View style={[styles.wrap, { bottom }, hidden]} pointerEvents="box-none">
       <View style={styles.bar}>
-        <BlurView
-          intensity={28}
-          tint={isDark ? 'dark' : 'light'}
-          experimentalBlurMethod="dimezisBlurView"
-          style={StyleSheet.absoluteFill}
-        />
+        {/* Android's blur is off here. Since expo-blur 55 `dimezisBlurView`
+            only blurs what a BlurTargetView wraps, which would mean threading
+            a ref from this bar up around whichever screen is mounted — a lot
+            of plumbing for a platform this app is not shipped on. The tint
+            below already carries the contrast, so Android gets a translucent
+            bar instead of a blurred one. */}
+        <BlurView intensity={28} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
         {/* Tint over the blur: guarantees label contrast whatever scrolls beneath. */}
         <View style={styles.tint} />
 
