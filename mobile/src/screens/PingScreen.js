@@ -57,6 +57,13 @@ function formatDay(d) {
   return formatDayMonth(d);
 }
 
+/**
+ * Whether a ping is still waiting on someone. Nobody has answered it, and the
+ * session it proposes hasn't already come and gone — an invitation to a slot
+ * that passed yesterday is over whether or not anyone replied.
+ */
+const isLive = (ping) => ping.status === 'pending' && ping.at > Date.now();
+
 /** Default to the next round half-hour, which is nearly always what you want. */
 function nextHalfHour() {
   const d = new Date();
@@ -175,32 +182,31 @@ export default function PingScreen() {
     return [...seen.values()].slice(0, 8);
   }, [sent, received]);
 
-  const pendingCount = received.filter((p) => p.status === 'pending').length;
+  const pendingCount = received.filter(isLive).length;
 
   /**
    * Each tab answers one question, so none of them has to label its rows.
    *
-   *   received  what still needs an answer from me — an inbox, so a ping leaves
-   *             it the moment it's answered
-   *   accepted  what both of us agreed to, whoever asked
-   *   sent      what I asked for, however it turned out
+   *   received  invitations waiting on me
+   *   outgoing  invitations waiting on someone else
+   *   activity  everything that stopped waiting, both directions
    *
-   * A ping I declined is therefore gone from my side once I've declined it,
-   * which is the point of an inbox. It stays on the sender's sent tab, marked
-   * declined — they're the one the outcome matters to.
+   * The first two hold only what can still happen, which is what makes them
+   * worth opening: a ping leaves the moment it is answered, and leaves on its
+   * own when its session has been and gone. Everything that lands in activity
+   * got there by being finished with, so that tab is the only one that has to
+   * say how each row ended.
    *
-   * `direction` is added on merge: PingOut always describes the other person, so
-   * the accepted tab otherwise can't say whether I sent or was sent.
+   * `direction` is added on merge: PingOut always describes the other person,
+   * so activity otherwise can't say whether I sent or was sent.
    */
   const rows = useMemo(() => {
     const inbound = received.map((p) => ({ ...p, direction: 'in' }));
     const outbound = sent.map((p) => ({ ...p, direction: 'out' }));
 
-    if (tab === 'received') return inbound.filter((p) => p.status === 'pending');
-    if (tab === 'sent') return outbound;
-    return [...inbound, ...outbound]
-      .filter((p) => p.status === 'accepted')
-      .sort((a, b) => b.at - a.at);
+    if (tab === 'received') return inbound.filter(isLive);
+    if (tab === 'outgoing') return outbound.filter(isLive);
+    return [...inbound, ...outbound].filter((p) => !isLive(p)).sort((a, b) => b.at - a.at);
   }, [tab, received, sent]);
 
   const send = useCallback(async () => {
@@ -214,7 +220,7 @@ export default function PingScreen() {
       const ping = await sendPing({ username: target, at: when.getTime() });
       setTarget('');
       setNotice(`Pinged @${ping.user.username}.`);
-      setTab('sent');
+      setTab('outgoing');
     } catch (e) {
       setError(e.message);
     } finally {
@@ -321,7 +327,7 @@ export default function PingScreen() {
             <View style={styles.tabs}>
               {[
                 ['received', 'Received', pendingCount],
-                ['accepted', 'Accepted', 0],
+                ['outgoing', 'Outgoing', 0],
               ].map(([key, label, badge]) => {
                 const active = tab === key;
                 return (
@@ -346,20 +352,20 @@ export default function PingScreen() {
                 );
               })}
 
-              {/* Everything I've asked for — no label, the icon says enough. */}
+              {/* Everything already settled — no label, the icon says enough. */}
               <Pressable
-                onPress={() => setTab('sent')}
+                onPress={() => setTab('activity')}
                 style={({ pressed }) => [
                   styles.tab,
                   styles.tabSquare,
-                  tab === 'sent' && styles.tabActive,
+                  tab === 'activity' && styles.tabActive,
                   pressed && styles.chipPressed,
                 ]}
                 accessibilityRole="tab"
-                accessibilityState={{ selected: tab === 'sent' }}
-                accessibilityLabel="Pings you sent"
+                accessibilityState={{ selected: tab === 'activity' }}
+                accessibilityLabel="Recent activity"
               >
-                <IconHistory size={18} color={tab === 'sent' ? colors.accent : colors.muted} />
+                <IconHistory size={18} color={tab === 'activity' ? colors.accent : colors.muted} />
               </Pressable>
             </View>
 
@@ -370,22 +376,21 @@ export default function PingScreen() {
             title={
               tab === 'received'
                 ? 'Nothing to answer'
-                : tab === 'accepted'
-                  ? 'Nothing accepted yet'
-                  : 'Nothing sent yet'
+                : tab === 'outgoing'
+                  ? 'Nothing waiting'
+                  : 'Nothing yet'
             }
             hint={
               tab === 'received'
                 ? 'Invitations waiting on you land here.'
-                : tab === 'accepted'
-                  ? 'Sessions both of you agreed to show up here.'
-                  : "Invite someone above and it'll show up here."
+                : tab === 'outgoing'
+                  ? "Invite someone above and it'll wait here for their answer."
+                  : 'Answered invitations collect here, whoever sent them.'
             }
           />
         }
         renderItem={({ item }) => {
           const at = new Date(item.at);
-          const past = at.getTime() < Date.now();
           const avatar = AVATARS.find((a) => a.key === item.user.avatar);
           const inbound = (item.direction ?? 'in') === 'in';
 
@@ -400,15 +405,15 @@ export default function PingScreen() {
                   @{item.user.username}
                 </Text>
                 <Text style={styles.rowWhen}>
-                  {/* Only the accepted tab mixes the two directions. */}
-                  {tab === 'accepted' ? `${inbound ? 'from' : 'to'} · ` : ''}
+                  {/* Only activity mixes the two directions. */}
+                  {tab === 'activity' ? `${inbound ? 'from' : 'to'} · ` : ''}
                   {formatDay(at)} · {formatTime(at)}
                 </Text>
               </View>
 
-              {/* Each tab holds one kind of thing, so the card says only what
-                  that tab can't: an answer to give, or how it turned out.
-                  Accepted needs neither — every row on it was accepted. */}
+              {/* Each tab holds one kind of thing, so the card carries only
+                  what that tab can't say for itself: the answer to give, the
+                  way to take one back, or how it ended. */}
               {tab === 'received' && (
                 <View style={styles.answer}>
                   <Pressable
@@ -437,33 +442,30 @@ export default function PingScreen() {
                 </View>
               )}
 
-              {tab === 'sent' && (
-                <View style={styles.answer}>
-                  <Text
-                    style={[
-                      styles.rowState,
-                      (item.status === 'declined' || (item.status === 'pending' && past)) &&
-                        styles.rowStatePast,
-                    ]}
-                  >
-                    {item.status === 'pending' ? (past ? 'expired' : 'pending') : item.status}
-                  </Text>
+              {/* Withdrawing is the sender's move; a recipient declines. Every
+                  row here is still unanswered, which is the only time taking
+                  one back isn't rewriting what happened. */}
+              {tab === 'outgoing' && (
+                <Pressable
+                  onPress={() => withdraw(item)}
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.answerButton, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Withdraw ping to ${item.user.username}`}
+                >
+                  <IconX size={16} color={colors.muted} />
+                </Pressable>
+              )}
 
-                  {/* Withdrawing is the sender's move; a recipient declines.
-                      Only while it could still be answered — taking one back
-                      after the fact would rewrite what happened. */}
-                  {item.status === 'pending' && !past && (
-                    <Pressable
-                      onPress={() => withdraw(item)}
-                      hitSlop={8}
-                      style={({ pressed }) => [styles.answerButton, pressed && styles.pressed]}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Withdraw ping to ${item.user.username}`}
-                    >
-                      <IconX size={16} color={colors.muted} />
-                    </Pressable>
-                  )}
-                </View>
+              {tab === 'activity' && (
+                <Text
+                  style={[
+                    styles.rowState,
+                    item.status !== 'accepted' && styles.rowStatePast,
+                  ]}
+                >
+                  {item.status === 'pending' ? 'expired' : item.status}
+                </Text>
               )}
             </Card>
           );
