@@ -68,7 +68,7 @@ export default function AuthScreen() {
             label="Username"
             value={username}
             onChangeText={setUsername}
-            placeholder="alex_lifts"
+            placeholder="iron_mike"
             autoCapitalize="none"
             autoCorrect={false}
           />
